@@ -1,0 +1,487 @@
+---
+id: M04.2
+title: 线性模型
+subtitle: Linear Models
+module: M04
+priority: P0
+tags: []
+prereqs: [M02.1, M02.2, M02.4]
+anchors: []
+build_status: Draft          # 由 sync_index.py 从 curriculum.yaml 镜像，请勿手改
+learn_status: Not Started    # 学习者所有：Not Started / Reading / Practicing / Reviewed / Mastered
+evidence: []                 # 学习者所有：掌握证据（测试提交、复测记录等）
+next_review:                 # 学习者所有：下次复测日期
+last_reviewed: 2026-11-11
+code-fold: true
+code-summary: "显示绘图代码"
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
+INK, MUTED, GRID, SURFACE = "#0b0b0b", "#52514e", "#e4e2da", "#fcfcfb"
+plt.rcParams.update({
+    "figure.dpi": 150, "figure.facecolor": SURFACE, "axes.facecolor": SURFACE,
+    "savefig.facecolor": SURFACE, "axes.edgecolor": MUTED, "axes.labelcolor": MUTED,
+    "xtick.color": MUTED, "ytick.color": MUTED, "text.color": INK,
+    "axes.spines.top": False, "axes.spines.right": False,
+    "axes.grid": True, "grid.color": GRID, "grid.linewidth": 0.6,
+    "lines.linewidth": 2.0, "font.size": 10, "legend.frameon": False,
+    "mathtext.fontset": "cm",
+})
+```
+
+## 0. 定位
+
+线性模型假设输出是参数的线性函数。它是整个监督学习的参照系：正则化、最大似然、贝叶斯先验、凸优化这些概念，都能在线性模型里写出闭式解并看清楚。在原子模拟中它也不只是教学模型：SNAP 和线性 ACE 势的拟合就是一个加权最小二乘问题。
+
+## 1. 学习目标
+
+学完本章，你应当能够：
+
+- 从几何（正交投影）和概率（高斯噪声下的最大似然）两个角度**推导**最小二乘解；
+- **推导** Ridge 的闭式解，并用 SVD **解释**它为什么能稳定病态问题；
+- **说明** Lasso 产生稀疏解的原因，**实现**坐标下降；
+- **推导**逻辑回归的梯度与 Hessian，**实现** Newton 法；
+- **判断**何时不能直接解正规方程，何时必须先标准化特征，何时需要正则化。
+
+## 2. 前置知识
+
+本章用到 M02.1（正交投影、SVD、条件数）、M02.2（向量与矩阵求导）和 M02.4（最大似然与 MAP）。这三章尚未建设；如果对其中某一项不熟，先读第 3 节推荐资源中标注的补充章节。
+
+符号遵循[数学符号约定](../../../docs/math-notation.md)：$X \in \mathbb{R}^{n \times d}$ 是设计矩阵，$\mathbf{y} \in \mathbb{R}^n$ 是目标，$\mathbf{w} \in \mathbb{R}^d$ 是系数，$b$ 是截距。
+
+## 3. 推荐阅读
+
+1. **Hastie, Tibshirani, Friedman, *The Elements of Statistical Learning*（第 2 版）**：3.2 节（最小二乘及其几何解释）、3.4 节（Ridge 与 Lasso，含 SVD 视角）、4.4 节（逻辑回归与 IRLS）。本章的主干，推导最完整。[官方免费 PDF](https://hastie.su.domains/ElemStatLearn/) `[待核实]`（该链接在 2026-11-11 核实时访问超时）
+2. **James 等, *An Introduction to Statistical Learning with Applications in Python***：第 3 章、6.2 节、4.3 节。同样内容的入门版本，配有 Python 实验，适合先建立直觉。[官方网站](https://www.statlearning.com/)
+3. **Murphy, *Probabilistic Machine Learning: An Introduction***：第 11 章（线性回归）、第 10 章（逻辑回归）、第 12 章（广义线性模型）。侧重概率视角，是 5.5 节的延伸阅读。[官方网站](https://probml.github.io/pml-book/book1.html)
+
+线性代数基础不牢时，先读 ESL 3.2 节之前补一下 *Mathematics for Machine Learning* 第 3 章（正交投影）和第 4 章（SVD）。
+
+## 4. 核心概念与直觉
+
+### 4.1 最小二乘是一次正交投影
+
+先看 @fig-projection。$X$ 的各列张成一个子空间，模型能给出的全部预测 $X\mathbf{w}$ 都落在这个子空间里。观测 $\mathbf{y}$ 一般不在其中。最小二乘要找的是子空间里离 $\mathbf{y}$ 最近的点 $\hat{\mathbf{y}}$，也就是 $\mathbf{y}$ 的正交投影。
+
+```{python}
+#| label: fig-projection
+#| fig-cap: "最小二乘的几何含义。灰线是 $X$ 的列空间，$\\hat{\\mathbf{y}}$ 是 $\\mathbf{y}$ 在其上的正交投影，残差 $\\mathbf{r}$ 与列空间垂直。"
+#| fig-alt: "二维示意图：向量 y 投影到一条过原点的直线上，残差与直线垂直。"
+a = np.array([2.0, 1.0]) / np.sqrt(5.0)          # 列空间的方向
+y = np.array([1.1, 2.3])
+y_hat = (a @ y) * a
+
+fig, ax = plt.subplots(figsize=(5.6, 3.6))
+ax.plot(*np.outer([-0.4, 3.4], a).T, color=MUTED, lw=1.2, zorder=1)
+arrow = dict(arrowstyle="-|>", mutation_scale=14, lw=2, shrinkA=0, shrinkB=0)
+ax.annotate("", y, (0, 0), arrowprops=dict(color=BLUE, **arrow))
+ax.annotate("", y_hat, (0, 0), arrowprops=dict(color=AQUA, **arrow))
+ax.plot(*np.array([y_hat, y]).T, color=ORANGE, ls=(0, (4, 3)))
+
+# 直角标记
+u, v = a * 0.16, np.array([-a[1], a[0]]) * 0.16
+ax.plot(*np.array([y_hat - u, y_hat - u + v, y_hat + v]).T, color=MUTED, lw=1)
+
+ax.text(*(y + [-0.02, 0.12]), r"$\mathbf{y}$", ha="center", fontsize=13)
+ax.text(*(y_hat + [0.12, -0.3]), r"$\hat{\mathbf{y}} = X\hat{\mathbf{w}}$", fontsize=13)
+ax.text(*((y + y_hat) / 2 + [0.1, 0.05]), r"$\mathbf{r} = \mathbf{y} - \hat{\mathbf{y}}$", fontsize=13)
+ax.text(*(3.4 * a + [0.05, -0.28]), r"$\mathrm{col}(X)$", color=MUTED, fontsize=12)
+ax.set_aspect("equal")
+ax.set(xlim=(-0.5, 3.6), ylim=(-0.5, 2.7))
+ax.axis("off")
+plt.show()
+```
+
+“最近”意味着残差 $\mathbf{r} = \mathbf{y} - X\hat{\mathbf{w}}$ 与子空间垂直，即与 $X$ 的每一列正交：$X^\top \mathbf{r} = \mathbf{0}$。把 $\mathbf{r}$ 代入，就得到正规方程。下面用三种方式看同一件事。
+
+::: {.panel-tabset}
+
+### 几何
+
+残差与列空间正交：
+
+$$
+X^\top (\mathbf{y} - X\hat{\mathbf{w}}) = \mathbf{0}
+\quad\Longleftrightarrow\quad
+X^\top X\,\hat{\mathbf{w}} = X^\top \mathbf{y}.
+$$ {#eq-normal}
+
+当 $X$ 列满秩时 $\hat{\mathbf{y}} = P\mathbf{y}$，其中 $P = X(X^\top X)^{-1}X^\top$ 是投影矩阵，满足 $P^2 = P$、$P^\top = P$。
+
+### 概率
+
+假设 $y_i = \mathbf{w}^\top \mathbf{x}_i + \varepsilon_i$，噪声 $\varepsilon_i \sim \mathcal{N}(0, \sigma^2)$ 独立同分布，则负对数似然为
+
+$$
+-\log p(\mathbf{y} \mid X, \mathbf{w}) = \frac{1}{2\sigma^2}\lVert \mathbf{y} - X\mathbf{w} \rVert^2 + \frac{n}{2}\log(2\pi\sigma^2).
+$$
+
+对 $\mathbf{w}$ 最大化似然，等价于最小化残差平方和。平方损失并不是任意选择，它对应“噪声是等方差高斯”这个假设。假设不成立时（异方差、重尾、离群点），应当换损失函数。
+
+### 代码
+
+```python
+# 不要这样写：显式求解正规方程
+w = np.linalg.solve(X.T @ X, X.T @ y)
+
+# 推荐：基于 QR 或 SVD 的最小二乘求解器
+w, *_ = np.linalg.lstsq(X, y, rcond=None)
+```
+
+两种写法在数学上等价，在浮点运算下不等价，原因见第 6 节。
+
+:::
+
+### 4.2 正则化：用一点偏差换方差
+
+当特征之间高度相关，或者特征数接近、超过样本数时，最小二乘解对数据的微小扰动极其敏感：系数可以正负相消地变得很大，训练误差很小，预测却很差。
+
+::: {.column-margin}
+**与结构优化的类比**：$X^\top X$ 的小特征值方向，相当于势能面上很“软”的模式。数据在这些方向上几乎不提供约束，解可以沿着它们漂得很远。Ridge 相当于在每个方向上加一根刚度为 $\alpha$ 的弹簧。
+:::
+
+正则化在目标函数里加一项对系数大小的惩罚。Ridge 用 $\ell_2$ 范数，把所有系数平滑地向零收缩；Lasso 用 $\ell_1$ 范数，会把一部分系数精确压到零。拖动 @fig-ridge-slider 的滑块，可以看到惩罚强度如何改变一个 9 次多项式的拟合结果。
+
+```{python}
+#| label: fig-ridge-slider
+#| fig-cap: "正则化强度对 9 次多项式 Ridge 拟合的影响（交互图）。$\\alpha$ 很小时曲线穿过每个数据点但剧烈振荡；$\\alpha$ 很大时曲线被压平。"
+import plotly.graph_objects as go
+from sklearn.linear_model import Ridge
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import PolynomialFeatures, StandardScaler
+
+rng = np.random.default_rng(3)
+x_train = np.sort(rng.uniform(0, 1, 15))
+y_train = np.sin(2 * np.pi * x_train) + 0.2 * rng.normal(size=15)
+x_grid = np.linspace(0, 1, 200)
+truth = np.sin(2 * np.pi * x_grid)
+
+alphas = 10.0 ** np.arange(-9, 2)
+fits, labels = [], []
+for alpha in alphas:
+    model = make_pipeline(PolynomialFeatures(9, include_bias=False), StandardScaler(), Ridge(alpha=alpha))
+    model.fit(x_train[:, None], y_train)
+    pred = model.predict(x_grid[:, None])
+    rmse = np.sqrt(np.mean((pred - truth) ** 2))
+    norm = np.linalg.norm(model[-1].coef_)
+    fits.append(pred)
+    labels.append(f"α = 1e{int(np.log10(alpha)):+d}   ‖w‖ = {norm:.3g}   相对真实函数的 RMSE = {rmse:.3f}")
+
+start = 2
+fig = go.Figure()
+fig.add_scatter(x=x_grid, y=truth, mode="lines", name="真实函数 sin(2πx)",
+                line=dict(color=MUTED, width=1.5, dash="dash"))
+fig.add_scatter(x=x_train, y=y_train, mode="markers", name="训练数据",
+                marker=dict(color=INK, size=8, line=dict(color=SURFACE, width=2)))
+for i, pred in enumerate(fits):
+    fig.add_scatter(x=x_grid, y=pred, mode="lines", name="Ridge 拟合",
+                    line=dict(color=BLUE, width=2.5), visible=(i == start))
+
+steps = [
+    dict(method="update", label=f"1e{int(np.log10(a)):+d}",
+         args=[{"visible": [True, True] + [j == i for j in range(len(alphas))]},
+               {"title.text": labels[i]}])
+    for i, a in enumerate(alphas)
+]
+fig.update_layout(
+    title=dict(text=labels[start], font=dict(size=13, color=MUTED), x=0.02),
+    sliders=[dict(active=start, steps=steps, currentvalue=dict(prefix="α = "), pad=dict(t=30))],
+    xaxis=dict(title="x", gridcolor=GRID, zeroline=False),
+    yaxis=dict(title="y", range=[-2, 2], gridcolor=GRID, zeroline=False),
+    paper_bgcolor=SURFACE, plot_bgcolor=SURFACE, font=dict(color=INK),
+    legend=dict(orientation="h", y=1.02, x=1, xanchor="right", yanchor="bottom"),
+    margin=dict(l=50, r=20, t=70, b=20), height=430,
+)
+# 不用 fig.show()：Plotly 默认的 notebook 渲染器会再加载一份 MathJax 3，
+# 与页面自身的 MathJax 冲突，导致全页公式不渲染。
+from IPython.display import HTML
+HTML(fig.to_html(full_html=False, include_plotlyjs="cdn", include_mathjax=False))
+```
+
+## 5. 数学原理
+
+以下推导都把截距单独处理：截距不受惩罚时，最优截距总是 $\hat b = \bar y - \bar{\mathbf{x}}^\top \hat{\mathbf{w}}$。所以先把 $X$ 的每一列和 $\mathbf{y}$ 各自减去均值，在中心化数据上求 $\hat{\mathbf{w}}$，最后恢复截距。本节的 $X$、$\mathbf{y}$ 都指中心化之后的量。
+
+### 5.1 最小二乘
+
+目标函数为
+
+$$
+J(\mathbf{w}) = \tfrac{1}{2}\lVert \mathbf{y} - X\mathbf{w} \rVert^2 .
+$$ {#eq-ols}
+
+令梯度 $\nabla J = -X^\top(\mathbf{y} - X\mathbf{w})$ 为零，得到 @eq-normal。Hessian $X^\top X$ 半正定，所以 $J$ 是凸函数，驻点就是全局最小点。
+
+用 SVD $X = U\Sigma V^\top$（奇异值 $\sigma_1 \ge \dots \ge \sigma_r > 0$）可以把解写成
+
+$$
+\hat{\mathbf{w}}_{\text{OLS}} = \sum_{i=1}^{r} \frac{\mathbf{u}_i^\top \mathbf{y}}{\sigma_i}\,\mathbf{v}_i .
+$$ {#eq-ols-svd}
+
+@eq-ols-svd 直接暴露了问题所在：$\sigma_i$ 很小的方向上，$\mathbf{y}$ 中的噪声被放大 $1/\sigma_i$ 倍。$X$ 不满秩时，只对非零奇异值求和得到的是范数最小的那个解。
+
+### 5.2 Ridge 回归
+
+$$
+J_{\text{ridge}}(\mathbf{w}) = \lVert \mathbf{y} - X\mathbf{w} \rVert^2 + \alpha \lVert \mathbf{w} \rVert^2,
+\qquad
+\hat{\mathbf{w}}_{\text{ridge}} = (X^\top X + \alpha I)^{-1} X^\top \mathbf{y}.
+$$ {#eq-ridge}
+
+只要 $\alpha > 0$，$X^\top X + \alpha I$ 的特征值都不小于 $\alpha$，矩阵对称正定，解存在且唯一。代入 SVD 得到
+
+$$
+\hat{\mathbf{w}}_{\text{ridge}} = \sum_{i=1}^{r} \frac{\sigma_i^2}{\sigma_i^2 + \alpha}\cdot\frac{\mathbf{u}_i^\top \mathbf{y}}{\sigma_i}\,\mathbf{v}_i .
+$$ {#eq-ridge-svd}
+
+对比 @eq-ols-svd 和 @eq-ridge-svd：Ridge 给每个方向乘了一个收缩因子 $\sigma_i^2/(\sigma_i^2+\alpha)$。$\sigma_i^2 \gg \alpha$ 的方向几乎不变，$\sigma_i^2 \ll \alpha$ 的方向被压到接近零。它压制的正是数据约束最弱、噪声放大最严重的方向。
+
+::: {.callout-note collapse="true" title="完整推导：闭式解、SVD 形式与 MAP 解释"}
+**闭式解。** $\nabla J_{\text{ridge}} = -2X^\top(\mathbf{y} - X\mathbf{w}) + 2\alpha\mathbf{w} = \mathbf{0}$，整理得 $(X^\top X + \alpha I)\mathbf{w} = X^\top\mathbf{y}$。
+
+**SVD 形式。** 由 $X = U\Sigma V^\top$ 得 $X^\top X = V\Sigma^2 V^\top$。在 $V$ 的列张成的子空间内，
+
+$$
+(X^\top X + \alpha I)^{-1}X^\top = V(\Sigma^2 + \alpha I)^{-1}V^\top V\Sigma U^\top = V\,\mathrm{diag}\!\left(\frac{\sigma_i}{\sigma_i^2+\alpha}\right)U^\top ,
+$$
+
+写成求和即 @eq-ridge-svd。$X^\top\mathbf{y}$ 在 $V$ 的正交补上没有分量，所以那部分不贡献。
+
+**MAP 解释。** 在高斯似然 $\mathbf{y}\mid\mathbf{w} \sim \mathcal{N}(X\mathbf{w}, \sigma^2 I)$ 之外加上先验 $\mathbf{w} \sim \mathcal{N}(\mathbf{0}, \tau^2 I)$，负对数后验为
+
+$$
+\frac{1}{2\sigma^2}\lVert\mathbf{y} - X\mathbf{w}\rVert^2 + \frac{1}{2\tau^2}\lVert\mathbf{w}\rVert^2 + \text{常数}.
+$$
+
+乘以 $2\sigma^2$ 后与 @eq-ridge 的目标函数相同，其中 $\alpha = \sigma^2/\tau^2$。噪声越大或先验越窄，收缩越强。
+
+**对偶形式。** 由恒等式 $(X^\top X + \alpha I)^{-1}X^\top = X^\top(XX^\top + \alpha I)^{-1}$，解也可以写成 $\hat{\mathbf{w}} = X^\top(XX^\top + \alpha I)^{-1}\mathbf{y}$。它只涉及样本之间的内积 $XX^\top$，把内积换成核函数就得到核岭回归（M04.3）。
+:::
+
+### 5.3 Lasso 与 Elastic Net
+
+$$
+J_{\text{lasso}}(\mathbf{w}) = \frac{1}{2n}\lVert \mathbf{y} - X\mathbf{w} \rVert^2 + \alpha \lVert \mathbf{w} \rVert_1 .
+$$ {#eq-lasso}
+
+$\ell_1$ 范数在零点不可导，没有闭式解。但固定其余坐标、只看 $w_j$ 时，问题变成一维的，可以解析求解。记 $\mathbf{r}^{(j)} = \mathbf{y} - \sum_{k \ne j}\mathbf{x}_k w_k$ 为去掉第 $j$ 个特征后的部分残差，则
+
+$$
+w_j \leftarrow \frac{S(\rho_j, \alpha)}{\tfrac{1}{n}\lVert\mathbf{x}_j\rVert^2},
+\qquad
+\rho_j = \tfrac{1}{n}\,\mathbf{x}_j^\top \mathbf{r}^{(j)},
+\qquad
+S(z, t) = \operatorname{sign}(z)\max(|z| - t, 0).
+$$ {#eq-lasso-cd}
+
+$S$ 称为软阈值算子。@eq-lasso-cd 说明了稀疏性的来源：当特征 $j$ 与部分残差的相关 $|\rho_j|$ 不超过 $\alpha$ 时，$w_j$ 被**精确**置零，而不是变成一个很小的数。循环对所有坐标做这个更新直到收敛，就是坐标下降法。
+
+@fig-paths 对比了两种惩罚下系数随 $\alpha$ 的变化。Ridge 的系数连续地趋向零但始终非零；Lasso 的系数逐个在有限的 $\alpha$ 处变成零，真实系数为零的特征最先被剔除。
+
+```{python}
+#| label: fig-paths
+#| fig-cap: "同一份合成数据上的系数路径：8 个特征中只有 3 个的真实系数非零（蓝色）。左：Ridge 平滑收缩。右：Lasso 逐个把系数压到零。"
+#| fig-alt: "两幅并排的折线图，横轴为对数刻度的正则化强度，纵轴为系数值。"
+from sklearn.linear_model import Lasso, Ridge
+
+rng = np.random.default_rng(0)
+n, d = 80, 8
+latent = rng.normal(size=(n, d))
+X = latent + 0.6 * latent[:, [0]]                      # 引入特征间相关
+X = (X - X.mean(0)) / X.std(0)
+w_true = np.array([2.0, -1.5, 1.0, 0, 0, 0, 0, 0])
+y = X @ w_true + rng.normal(size=n)
+
+ridge_alphas = np.logspace(-1, 4, 60)
+lasso_alphas = np.logspace(-3, 0.5, 60)
+ridge_path = np.array([Ridge(alpha=a).fit(X, y).coef_ for a in ridge_alphas])
+lasso_path = np.array([Lasso(alpha=a, max_iter=50_000).fit(X, y).coef_ for a in lasso_alphas])
+
+fig, axes = plt.subplots(1, 2, figsize=(8.2, 3.3), sharey=True)
+for ax, alphas_, path, name in [(axes[0], ridge_alphas, ridge_path, "Ridge"),
+                                (axes[1], lasso_alphas, lasso_path, "Lasso")]:
+    for j in range(d):
+        relevant = w_true[j] != 0
+        ax.plot(alphas_, path[:, j], color=BLUE if relevant else "#a9a79d",
+                lw=2 if relevant else 1.2, zorder=3 if relevant else 2)
+    ax.axhline(0, color=MUTED, lw=0.8)
+    ax.set_xscale("log")
+    ax.set_xlabel(r"$\alpha$")
+    ax.set_title(name, loc="left", fontsize=11, color=INK)
+axes[0].set_ylabel("coefficient")
+axes[0].plot([], [], color=BLUE, label="true coefficient $\\neq 0$")
+axes[0].plot([], [], color="#a9a79d", lw=1.2, label="true coefficient $= 0$")
+axes[0].legend(loc="upper right", fontsize=8.5)
+fig.tight_layout()
+plt.show()
+```
+
+Lasso 的弱点在相关特征上：一组高度相关的特征里，它倾向于只留一个，留哪个对数据扰动很敏感。**Elastic Net** 把两种惩罚加在一起，$\alpha\,[\rho\lVert\mathbf{w}\rVert_1 + \tfrac{1-\rho}{2}\lVert\mathbf{w}\rVert^2]$，既保留稀疏性，又让相关特征的系数趋于接近。从贝叶斯角度看，$\ell_1$ 惩罚对应 Laplace 先验下的 MAP 估计。
+
+### 5.4 逻辑回归
+
+对二分类标签 $y_i \in \{0, 1\}$，逻辑回归用 sigmoid 函数把线性得分映射为概率：
+
+$$
+p_i = \sigma(z_i) = \frac{1}{1 + e^{-z_i}}, \qquad z_i = \mathbf{w}^\top\mathbf{x}_i + b .
+$$
+
+把 $y_i$ 看作参数为 $p_i$ 的 Bernoulli 变量，平均负对数似然（即交叉熵）为 $J = \tfrac{1}{n}\sum_i [\log(1 + e^{z_i}) - y_i z_i]$。它的梯度形式非常简洁：
+
+$$
+\nabla_{\mathbf{w}} J = \frac{1}{n} X^\top (\mathbf{p} - \mathbf{y}),
+\qquad
+\nabla^2_{\mathbf{w}} J = \frac{1}{n} X^\top S X, \quad S = \mathrm{diag}\big(p_i(1 - p_i)\big).
+$$ {#eq-logistic-grad}
+
+梯度是“预测减观测”再乘以特征，与最小二乘的梯度 $X^\top(X\mathbf{w} - \mathbf{y})$ 结构相同。Hessian 半正定，所以问题是凸的；没有闭式解，但 Newton 法收敛很快。每一步 Newton 更新都等价于求解一个权重为 $S$ 的加权最小二乘问题，因此也叫迭代重加权最小二乘（IRLS）。
+
+::: {.callout-note collapse="true" title="完整推导：梯度、Hessian 与 IRLS"}
+利用 $\sigma'(z) = \sigma(z)(1 - \sigma(z))$ 和 $\tfrac{d}{dz}\log(1 + e^{z}) = \sigma(z)$，
+
+$$
+\frac{\partial J}{\partial z_i} = \frac{1}{n}(p_i - y_i),
+\qquad
+\frac{\partial^2 J}{\partial z_i^2} = \frac{1}{n}p_i(1 - p_i).
+$$
+
+由 $z_i = \mathbf{w}^\top\mathbf{x}_i + b$ 和链式法则即得 @eq-logistic-grad；对 $b$ 的导数是把 $\mathbf{x}_i$ 换成 1。对任意 $\mathbf{v}$，$\mathbf{v}^\top X^\top S X\mathbf{v} = \sum_i p_i(1-p_i)(\mathbf{x}_i^\top\mathbf{v})^2 \ge 0$，所以 Hessian 半正定。
+
+加上 $\tfrac{\lambda}{2}\lVert\mathbf{w}\rVert^2$ 后，梯度多出 $\lambda\mathbf{w}$，Hessian 多出 $\lambda I$（只作用在 $\mathbf{w}$ 上，不含截距），目标函数变为严格凸。
+
+**IRLS。** Newton 步 $\mathbf{w}^{+} = \mathbf{w} - (X^\top S X)^{-1}X^\top(\mathbf{p} - \mathbf{y})$ 可以改写成
+
+$$
+\mathbf{w}^{+} = (X^\top S X)^{-1} X^\top S\,\boldsymbol{\zeta},
+\qquad \boldsymbol{\zeta} = X\mathbf{w} - S^{-1}(\mathbf{p} - \mathbf{y}),
+$$
+
+这正是以 $\boldsymbol{\zeta}$ 为目标、$S$ 为权重的加权最小二乘的正规方程。
+:::
+
+### 5.5 广义线性模型
+
+线性回归和逻辑回归是同一个框架的两个特例。广义线性模型（GLM）由三部分组成：响应 $y$ 服从指数族分布；线性预测子 $\eta = \mathbf{w}^\top\mathbf{x}$；连接函数 $g$ 把均值与线性预测子联系起来，$g(\mathbb{E}[y]) = \eta$。
+
+| 模型 | 响应分布 | 连接函数 $g(\mu)$ | 典型数据 |
+|---|---|---|---|
+| 线性回归 | 高斯 | $\mu$ | 连续值 |
+| 逻辑回归 | Bernoulli | $\log\frac{\mu}{1-\mu}$ | 二分类 |
+| Poisson 回归 | Poisson | $\log\mu$ | 计数（缺陷数、事件数） |
+
+使用表中这些“典范连接函数”时，负对数似然的梯度都是 $X^\top(\boldsymbol{\mu} - \mathbf{y})$ 的形式，都可以用 IRLS 求解。这解释了 @eq-logistic-grad 为什么与最小二乘的梯度长得一样。
+
+## 6. 算法与实现要点
+
+**不要显式求解正规方程。** $X^\top X$ 的条件数是 $X$ 条件数的平方。$\kappa(X) = 10^7$ 时，双精度下用 QR 或 SVD 还能保留约 9 位有效数字，解正规方程则只剩约 2 位。练习的测试中有一个 $\kappa \approx 10^7$ 的设计矩阵专门检查这一点。
+
+| 方法 | 复杂度 | 适用情况 |
+|---|---|---|
+| `lstsq`（SVD） | $O(nd^2)$ | 默认选择；秩亏时给出最小范数解 |
+| QR 分解 | $O(nd^2)$ | 列满秩，比 SVD 略快 |
+| Cholesky 解 $(X^\top X + \alpha I)$ | $O(nd^2 + d^3)$ | Ridge，$\alpha$ 足以保证良态时 |
+| 对偶形式 | $O(n^2 d + n^3)$ | $d \gg n$ |
+| 共轭梯度、SGD | 每步 $O(nd)$ | 大规模稀疏问题 |
+
+**先标准化，再正则化。** 惩罚项对所有系数一视同仁，而系数的量级取决于特征的单位。不标准化时，以 Å 为单位和以 nm 为单位的同一个特征会受到相差 100 倍的惩罚。标准化的均值和方差只能从训练集计算。
+
+**截距不惩罚。** 惩罚截距会让模型依赖于 $\mathbf{y}$ 的零点选择。实现上用中心化处理，见第 5 节开头。
+
+**逻辑回归的数值稳定性。** $z$ 很负时 `np.exp(-z)` 会溢出，$z$ 很大时 `np.log(1 + np.exp(z))` 会溢出。稳定的写法是对 $z$ 的正负分别处理，以及使用 `np.logaddexp(0, z)`。
+
+**坐标下降的效率。** 维护残差向量，每更新一个 $w_j$ 就增量修正残差，单次坐标更新的代价是 $O(n)$ 而不是 $O(nd)$。
+
+**不同库的 $\alpha$ 含义不同。** scikit-learn 的 `Ridge` 惩罚的是残差平方**和**，`Lasso` 惩罚的是残差平方和除以 $2n$，`LogisticRegression` 用的是 $C = 1/(n\lambda)$。对齐结果前先核对目标函数。
+
+## 7. 代码导航
+
+| 类型 | 文件 | 内容 |
+|---|---|---|
+| 示例 | [examples/collinearity_demo.py](../examples/collinearity_demo.py) | 多重共线性下 OLS 系数的方差爆炸，以及 Ridge 的稳定作用 |
+| 练习 1 | [exercises/linear_regression.py](../exercises/linear_regression.py) | `fit_ols`、`fit_ridge`、`ridge_loss_and_grad`、`soft_threshold`、`fit_lasso_cd` |
+| 练习 2 | [exercises/logistic_regression.py](../exercises/logistic_regression.py) | `sigmoid`、`logistic_loss_and_grad`、`fit_logistic_newton` |
+| 测试 | [tests/test_linear_regression.py](../tests/test_linear_regression.py)、[tests/test_logistic_regression.py](../tests/test_logistic_regression.py) | 与 scikit-learn 对齐、有限差分梯度检验、性质测试 |
+
+```bash
+uv run python modules/04-classical-machine-learning/examples/collinearity_demo.py
+make ex M=04                      # 用你的实现运行全部测试
+uv run pytest modules/04-classical-machine-learning/tests -k ridge   # 只跑名字含 ridge 的测试
+```
+
+练习说明与提示规则见[练习列表](../exercises/README.md)。练习属于 Level 1（从零实现）；测试中与 scikit-learn 的对齐承担了 Level 2 的作用，本章不设 Level 3 实验。
+
+## 8. 领域连接
+
+**线性机器学习势。** SNAP 把原子能量写成双谱分量的线性组合，线性 ACE 把它写成 ACE 基函数的线性组合。能量对系数是线性的，力和应力是能量对坐标和应变的导数，对系数同样是线性的。于是每个构型贡献一行能量方程、$3N$ 行力方程和 6 行应力方程，拟合就是一个大型加权最小二乘问题，通常带 Ridge 正则。能量、力、应力的权重在概率视角下对应各自的噪声方差。
+
+**团簇展开与压缩感知。** 合金团簇展开的有效相互作用系数大多为零。用 $\ell_1$ 惩罚拟合它们，正是 Lasso 在材料模拟中的经典应用。
+
+**对数变换后的线性拟合。** Arrhenius 关系 $\ln D = \ln D_0 - E_a/(k_B T)$、相变存储器的电阻漂移 $R \propto t^{\nu}$ 都是先取对数再做线性回归。需要注意，取对数改变了噪声模型：对 $\ln D$ 做最小二乘，等价于假设 $D$ 上是乘性噪声。
+
+**通往核方法。** Ridge 的对偶形式只依赖样本间的内积，把内积换成核函数就得到核岭回归和高斯过程回归，这是 SOAP-GAP 类势的数学基础，在 M04.3 展开。
+
+本章没有直接对应的研究锚点。它是 A3（“低 RMSE ≠ 可用的势”）的远期铺垫：线性模型是少数能把“拟合误差小”和“参数被数据良好约束”这两件事分开看清楚的场合。
+
+## 9. 常见误区与失败模式
+
+::: {.callout-warning title="训练误差小不代表系数可信"}
+共线性严重时，OLS 的训练残差可以很小，而系数的方差极大、符号都可能是错的。判断系数是否可信，要看 $X$ 的奇异值谱或系数在重采样下的稳定性，而不是看拟合优度。
+:::
+
+其余常见问题如下。
+
+- 正则化之前没有标准化特征，或者用全部数据（含测试集）计算标准化参数。
+- 把截距也放进惩罚项。
+- 把 Lasso 选出的非零特征当作“真正起作用的变量”。相关特征之间的选择是不稳定的。
+- 在线性可分的数据上做无正则的逻辑回归：似然没有有限的最大点，$\lVert\mathbf{w}\rVert$ 会一直增大，优化器报告不收敛。
+- 直接比较不同库在“相同 $\alpha$”下的结果，而没有核对目标函数的归一化方式。
+- 把逻辑回归输出的概率当成已校准的概率，尤其在类别不平衡或加了强正则时。校准见 M04.7。
+
+## 10. 自测题
+
+1. **概念**：为什么说平方损失隐含了一个噪声假设？数据中有少量严重离群点时，这个假设怎样影响拟合结果？
+2. **概念**：两个特征几乎完全相关（相关系数 0.999）。分别描述 OLS、Ridge、Lasso 在这两个特征上的系数会是什么样子。
+3. **推导**：证明 Ridge 的有效自由度 $\mathrm{df}(\alpha) = \operatorname{tr}\!\big[X(X^\top X + \alpha I)^{-1}X^\top\big] = \sum_i \sigma_i^2/(\sigma_i^2 + \alpha)$，并说明 $\alpha \to 0$ 和 $\alpha \to \infty$ 时它的取值。
+4. **推导**：从一维问题 $\min_w \tfrac{1}{2}(w - z)^2 + t|w|$ 出发，推出软阈值算子 $S(z, t)$。
+5. **编程**：完成第 7 节的两个练习，使 `make ex M=04` 全部通过。然后回答：把 `fit_ols` 改成显式求解正规方程，哪个测试会失败？相对误差大约是多少？
+
+::: {.callout-tip collapse="true" title="答案与提示"}
+1. 最小化残差平方和等价于等方差高斯噪声下的最大似然。高斯分布的尾部衰减很快，离群点的似然极低，模型会为了“解释”它而大幅移动拟合线：残差被平方，一个 10 倍于典型残差的点的影响相当于 100 个普通点。对策是换用重尾噪声对应的损失，如 Huber 损失或绝对值损失。
+
+2. OLS：两个系数之和被数据很好地约束，之差几乎不受约束，可能出现一正一负且绝对值很大的系数。Ridge：两个系数接近相等，各承担约一半。Lasso：通常只保留其中一个，另一个为零，保留哪个对数据扰动敏感。
+
+3. 代入 SVD：$X(X^\top X + \alpha I)^{-1}X^\top = U\,\mathrm{diag}\big(\sigma_i^2/(\sigma_i^2+\alpha)\big)U^\top$，迹等于对角元之和。$\alpha \to 0$ 时为 $\operatorname{rank}(X)$，$\alpha \to \infty$ 时趋于 0。它衡量了模型实际使用的参数个数。
+
+4. $w > 0$ 时令导数 $w - z + t = 0$，得 $w = z - t$，要求 $z > t$。$w < 0$ 时得 $w = z + t$，要求 $z < -t$。$|z| \le t$ 时两种情况都不成立，最小点在不可导点 $w = 0$（此处次梯度条件 $z \in [-t, t]$ 成立）。合并即 $S(z, t) = \operatorname{sign}(z)\max(|z| - t, 0)$。
+
+5. `test_ols_is_accurate_on_ill_conditioned_design` 会失败。该测试的 $\kappa(X) \approx 10^7$，正规方程的条件数约 $10^{14}$，乘以机器精度 $10^{-16}$，相对误差量级在 $10^{-2}$ 左右，远超测试容差 $10^{-6}$。请实际改一下代码验证这个估计。
+:::
+
+## 11. 小结
+
+- 最小二乘是把 $\mathbf{y}$ 正交投影到 $X$ 的列空间，也是等方差高斯噪声下的最大似然估计。
+- Ridge 按 $\sigma_i^2/(\sigma_i^2+\alpha)$ 收缩每个奇异方向，压制数据约束最弱的方向，对应高斯先验。
+- Lasso 通过软阈值把系数精确置零，对应 Laplace 先验；相关特征上的选择不稳定，Elastic Net 可以缓解。
+- 逻辑回归是 Bernoulli 似然下的线性模型，梯度为 $X^\top(\mathbf{p}-\mathbf{y})/n$，问题是凸的，可用 Newton 法（IRLS）求解。
+- 数值上：用 QR 或 SVD 而不是正规方程；先标准化再正则化；不惩罚截距。
+
+## 12. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::
+
+## 13. 参考资料
+
+- Hastie, T., Tibshirani, R., Friedman, J. *The Elements of Statistical Learning*, 2nd ed. Springer, 2009. <https://hastie.su.domains/ElemStatLearn/> `[待核实]`
+- James, G., Witten, D., Hastie, T., Tibshirani, R., Taylor, J. *An Introduction to Statistical Learning with Applications in Python*. Springer, 2023. <https://www.statlearning.com/>
+- Murphy, K. P. *Probabilistic Machine Learning: An Introduction*. MIT Press, 2022. <https://probml.github.io/pml-book/book1.html>
+- Thompson, A. P., Swiler, L. P., Trott, C. R., Foiles, S. M., Tucker, G. J. Spectral neighbor analysis method for automated generation of quantum-accurate interatomic potentials. *J. Comput. Phys.* **285**, 316–330 (2015). <https://doi.org/10.1016/j.jcp.2014.12.018>
+- Drautz, R. Atomic cluster expansion for accurate and transferable interatomic potentials. *Phys. Rev. B* **99**, 014104 (2019). <https://doi.org/10.1103/PhysRevB.99.014104>
+- Nelson, L. J., Hart, G. L. W., Zhou, F., Ozoliņš, V. Compressive sensing as a paradigm for building physics models. *Phys. Rev. B* **87**, 035125 (2013). <https://doi.org/10.1103/PhysRevB.87.035125>
