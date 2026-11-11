@@ -1,0 +1,327 @@
+---
+id: M01.4
+title: 计算机系统基础
+subtitle: Computer Systems Basics
+module: M01
+priority: P1
+tags: []
+prereqs: [M01.1]
+anchors: []
+build_status: Draft          # 由 sync_index.py 从 curriculum.yaml 镜像，请勿手改
+learn_status: Not Started    # 学习者所有：Not Started / Reading / Practicing / Reviewed / Mastered
+evidence: []                 # 学习者所有：掌握证据（测试提交、复测记录等）
+next_review:                 # 学习者所有：下次复测日期
+last_reviewed: 2026-11-11
+code-fold: true
+code-summary: "显示绘图代码"
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import BLUE, GRAY, INK, MUTED, ORANGE, plotly_html, plotly_layout, use_style
+
+use_style()
+```
+
+## 0. 定位
+
+同一段 Python 代码，换一种数据访问顺序可以慢十倍；同一个能量求和，换一种精度可以差九个数量级；同一个并行脚本，用线程还是进程决定了它能不能用上多核。这些现象都不在算法层面，而在算法下面那一层：存储层次、浮点数格式和操作系统。本章把这一层讲到“能解释自己代码的性能和数值行为”的程度。
+
+## 1. 学习目标
+
+学完本章，你应当能够：
+
+- 用时间局部性和空间局部性**解释**为什么顺序访问快、随机访问慢，并**判断**一段数组代码的访问模式是否缓存友好；
+- 从比特层面**说明** IEEE 754 浮点数的编码，**计算**给定数值附近的浮点间距；
+- 用舍入误差模型**估计**相减、累加这类运算的误差，并**改写**出数值更稳定的公式；
+- **区分**进程与线程，**说明** GIL 对 CPU 密集和等待型任务的不同影响，**选择**合适的并发方式；
+- 用 Amdahl 定律**估计**并行加速的上限；
+- **识别**系统调用和文本格式带来的 I/O 瓶颈。
+
+## 2. 前置知识
+
+需要 [M01.1 Python 进阶](01-advanced-python.qmd) 中的模块与导入机制（实例 notebook 第 6 节的多进程依赖它）和上下文管理器。NumPy 的内存布局、strides、向量化和性能分析工具属于 [M01.5 高性能科学 Python](05-high-performance-python.qmd)，本章只在硬件和操作系统层面讨论“为什么”，M01.5 讨论“在 NumPy 里怎么做”。
+
+符号遵循[数学符号约定](../../../docs/math-notation.md)。本章用 $\mathrm{fl}(x)$ 表示实数 $x$ 舍入后的浮点数，$u$ 表示单位舍入误差（unit roundoff）。
+
+## 3. 推荐阅读
+
+1. **Bryant, O'Hallaron, *Computer Systems: A Programmer's Perspective*（第 3 版）**：2.4 节（Floating Point，含 2.4.2 IEEE 浮点表示与 2.4.4 舍入）、第 6 章（The Memory Hierarchy，重点 6.2 局部性、6.4 缓存、6.5 编写缓存友好的代码、6.6.1 memory mountain）、12.1–12.3 节（基于进程、I/O 多路复用和线程的并发）。本章的主干，从程序员视角讲硬件。[官方网站](https://csapp.cs.cmu.edu/3e/home.html)
+2. **Goldberg, D., "What Every Computer Scientist Should Know About Floating-Point Arithmetic"**（ACM Computing Surveys, 1991）：“Rounding Error”一节的相对误差与 ulp、灾难性抵消（catastrophic cancellation）的分析，以及 Kahan 补偿求和定理。比 CS:APP 更偏数值分析。[Oracle 文档中的重印版](https://docs.oracle.com/cd/E19957-01/806-3568/ncg_goldberg.html)
+3. **Drepper, U., "What Every Programmer Should Know About Memory"**（2007）：第 3 节（CPU Caches）和第 6 节（What Programmers Can Do）。想深入缓存行、预取、TLB 时读。[PDF](https://people.freebsd.org/~lstewart/articles/cpumemory.pdf)
+
+并发部分以 Python 官方文档为准：[`concurrent.futures`](https://docs.python.org/3/library/concurrent.futures.html) 和 [`multiprocessing` 的启动方式（start methods）](https://docs.python.org/3/library/multiprocessing.html)。
+
+## 4. 核心概念与直觉
+
+### 4.1 存储层次：搬运的单位是缓存行
+
+CPU 计算一次加法只需要不到一纳秒，从主存取一个不在缓存里的数，等待时间却是它的上百倍。为了掩盖这个差距，CPU 和主存之间放了几级越来越小、越来越快的缓存（L1、L2，有的还有 L3 或系统级缓存）。数据在主存和缓存之间不是按字节搬运，而是按固定大小的**缓存行**（cache line）搬运：多数 x86 处理器是 64 字节，Apple Silicon 是 128 字节。
+
+这带来两条经验规律。**时间局部性**：刚用过的数据很可能马上再用，它还在缓存里。**空间局部性**：用了一个地址，附近的地址很可能马上要用，它们已经随同一个缓存行被搬进来了。顺序遍历数组同时满足两者，硬件预取器（prefetcher）还会提前搬运后面的缓存行；随机访问两者都不满足。
+
+::: {.column-margin}
+**与 MD 的类比**：Verlet 邻居表在若干步内反复使用，是时间局部性；按空间位置给原子重新排序，让邻居在内存里也相邻，是空间局部性。LAMMPS 的 `atom_modify sort` 就是做这件事，官方文档说明它的目的是改善缓存性能。
+:::
+
+实例 notebook 第 2 节在本机测量了两种访问模式。读取同样数量的 float64，步长从 8 字节增加到 128 字节（一个缓存行）时，每元素耗时上升约 20 倍，此后进入平台：每次读取都已经要搬一整行。数组超过缓存容量后，随机 gather 比顺序 gather 慢约 8 倍。这两个数随机器而变，但“台阶出现在缓存行和缓存容量处”这一结构不变。
+
+### 4.2 浮点数：间距随数值成比例增长
+
+浮点数在实数轴上不是均匀分布的。@fig-float-grid 画出了一个玩具浮点格式（3 位尾数）能表示的全部正数：每过一个 2 的幂（一个 binade），可表示数的个数不变，间距翻倍。
+
+```{python}
+#| label: fig-float-grid
+#| fig-cap: "玩具浮点格式（3 位尾数，指数 −1 到 2）能表示的全部正数。每个区间 $[2^e, 2^{e+1})$ 内都有 8 个数，间距 $2^{e-3}$ 随区间翻倍。float64 的结构完全相同，只是每个区间内有 $2^{52}$ 个数。"
+#| fig-alt: "一条数轴上的刻度点，越往右点越稀疏，每个 2 的幂处间距翻倍。"
+mant_bits = 3
+vals, colors = [], []
+for e in range(-1, 3):
+    for f in range(2**mant_bits):
+        vals.append((1 + f / 2**mant_bits) * 2.0**e)
+        colors.append(BLUE if e % 2 == 0 else ORANGE)
+vals = np.array(vals)
+
+fig, ax = plt.subplots(figsize=(7.4, 1.9))
+ax.axhline(0, color=MUTED, lw=0.8)
+ax.vlines(vals, -0.35, 0.35, colors=colors, lw=1.8)
+for e in range(-1, 4):
+    ax.text(2.0**e, -0.75, f"$2^{{{e}}}$", ha="center", fontsize=10, color=INK)
+    ax.vlines(2.0**e, -0.5, 0.5, colors=GRAY, lw=0.8, ls=":")
+for e in range(-1, 3):
+    ax.text(1.5 * 2.0**e, 0.55, f"间距 $2^{{{e - mant_bits}}}$", ha="center", fontsize=8.5,
+            color=MUTED)
+ax.set(xlim=(0.4, 8.3), ylim=(-1.0, 0.9))
+ax.axis("off")
+plt.show()
+```
+
+一个规格化的二进制浮点数由符号位 $s$、有偏指数 $e$ 和尾数 $f$ 三段组成，取值为
+
+$$
+x = (-1)^s \times (1.f)_2 \times 2^{\,e - \text{bias}} .
+$$ {#eq-float-value}
+
+float64 中 $s$ 占 1 位，$e$ 占 11 位（bias = 1023），$f$ 占 52 位，加上隐含的最高位 1，共有 $p = 53$ 位有效二进制数字；float32 分别是 1、8（bias = 127）、23 位，$p = 24$。$e$ 全 0 用于零和非规格化数（subnormal），全 1 用于无穷大和 NaN。notebook 第 3 节用 `struct` 把具体的数拆成这三段，并按 @eq-float-value 重建。
+
+1 和下一个可表示数之间的距离称为**机器精度**：
+
+$$
+\varepsilon_{\text{mach}} = 2^{1-p}, \qquad u = \tfrac{1}{2}\varepsilon_{\text{mach}} .
+$$ {#eq-eps}
+
+float64 的 $\varepsilon_{\text{mach}} \approx 2.22\times10^{-16}$，float32 约 $1.19\times10^{-7}$，即 `np.finfo(dtype).eps`。在 $[2^e, 2^{e+1})$ 内间距是 $\varepsilon_{\text{mach}} \cdot 2^e$，所以**相对**间距始终在 $\varepsilon_{\text{mach}}/2$ 到 $\varepsilon_{\text{mach}}$ 之间。@fig-spacing 画出了这个锯齿。
+
+```{python}
+#| label: fig-spacing
+#| fig-cap: "相邻浮点数的相对间距 $\\mathrm{spacing}(x)/x$。每个 binade 内从 $\\varepsilon_{\\text{mach}}$ 降到 $\\varepsilon_{\\text{mach}}/2$，然后在下一个 2 的幂处跳回。float32 与 float64 相差约 $2^{29}\\approx 5\\times10^{8}$ 倍。"
+#| fig-alt: "对数横轴上两条锯齿线，float32 在上，float64 在下。"
+x = np.logspace(-3, 3, 4000)
+fig, ax = plt.subplots(figsize=(6.4, 2.9))
+for dtype, color in ((np.float32, ORANGE), (np.float64, BLUE)):
+    xv = x.astype(dtype)
+    ax.plot(xv, np.spacing(xv) / xv, color=color, lw=1.4, label=dtype.__name__)
+    eps = np.finfo(dtype).eps
+    ax.axhline(eps, color=color, lw=0.8, ls="--")
+ax.set_xscale("log")
+ax.set_yscale("log")
+ax.set_xlabel("x")
+ax.set_ylabel("spacing(x) / x")
+ax.legend(loc="center right")
+plt.show()
+```
+
+### 4.3 进程、线程与 GIL
+
+**进程**拥有独立的地址空间，一个进程崩溃不会影响另一个，进程之间交换数据要经过序列化和操作系统。**线程**共享所属进程的地址空间，创建和切换都更轻，但共享内存也意味着需要同步。
+
+CPython 的**全局解释器锁**（GIL）规定同一时刻只有一个线程在执行 Python 字节码。所以纯 Python 的 CPU 密集代码开多线程得不到并行加速。但线程在两种情况下会释放 GIL：等待 I/O（文件、网络、`time.sleep`）时，以及 C 扩展在不触碰 Python 对象的长时间计算中主动释放（NumPy 的大数组运算、BLAS 都是这样）。于是有一条实用的选择规则：
+
+| 任务类型 | 例子 | 选择 |
+|---|---|---|
+| 等待型 | 下载数据、读写大量小文件、调用远程 API | 线程（`ThreadPoolExecutor`）或 `asyncio` |
+| CPU 密集，纯 Python | 逐个解析几千个 OUTCAR、纯 Python 循环 | 进程（`ProcessPoolExecutor`） |
+| CPU 密集，NumPy/BLAS | 大矩阵运算 | 通常库内部已多线程，外层不再并行 |
+
+::: {.column-margin}
+Python 3.13 起有可选的 free-threaded 构建（PEP 703），可以关闭 GIL。它仍是单独的构建，用 `sys._is_gil_enabled()` 可以检查当前解释器的状态。
+:::
+
+进程的代价在启动和通信。macOS 默认用 `spawn` 启动子进程（Python 3.14 起其他 POSIX 平台默认 `forkserver`），子进程要启动新的解释器、重新导入模块，再按名字找到要执行的函数，所以交给进程池的函数必须定义在可导入的模块里，不能只定义在 notebook 或交互式会话中。
+
+## 5. 数学原理
+
+### 5.1 舍入误差模型
+
+IEEE 754 要求基本运算的结果等于“先精确计算，再舍入到最近的浮点数”。由此得到分析浮点误差的基本模型：
+
+$$
+\mathrm{fl}(x \circ y) = (x \circ y)(1 + \delta), \qquad |\delta| \le u, \qquad \circ \in \{+, -, \times, \div\}.
+$$ {#eq-rounding}
+
+单次运算的**相对**误差不超过 $u$。问题出在误差的传播：每一步的 $\delta$ 会被后续运算放大或累积。
+
+### 5.2 累加误差
+
+逐项累加 $s_k = \mathrm{fl}(s_{k-1} + x_k)$ 时，$x_1$ 经历了 $n-1$ 次舍入，最后加的 $x_n$ 只经历一次。把 @eq-rounding 逐步展开并只保留 $u$ 的一阶项，得到
+
+$$
+|\hat s_n - s_n| \lesssim (n-1)\,u \sum_{i=1}^{n} |x_i| .
+$$ {#eq-sum-error}
+
+这是最坏情况的上界，实际误差常因符号随机而小一些，但它说明了两件事：误差随 $n$ 线性增长；分母是 $\sum|x_i|$ 而不是 $|\sum x_i|$，正负大量抵消时相对误差可以远大于 $nu$。
+
+改进办法有三类。**成对求和**（pairwise summation）把数据二分后递归相加，每个数只经历约 $\log_2 n$ 次舍入，NumPy 对连续数组求和就用这种方法。**Kahan 补偿求和**用一个额外变量记住每一步被舍入掉的低位，下一步补回，每个加数只受约 $2u$ 的扰动，误差界与 $n$ 基本无关（Goldberg 文中的 Theorem 8，Kahan Summation Formula）。**提高累加器精度**，比如数据是 float32、累加用 float64。notebook 第 5 节对比了这几种做法：$10^6$ 个 float32 逐项累加的相对误差约 $10^{-2}$，Kahan 求和约 $10^{-8}$。
+
+::: {.column-margin}
+**MD 中的能量漂移**：长时间 NVE 模拟中，总能量的缓慢漂移除了来自积分器和截断，也可能来自单精度累加。GPU 上的 MD 程序常提供“混合精度”模式：力的计算用单精度，能量和坐标的累加用双精度，原因就是 @eq-sum-error。
+:::
+
+### 5.3 灾难性抵消 {#sec-cancellation}
+
+两个相近的数相减本身是精确的（Sterbenz 引理：$y/2 \le x \le 2y$ 时 $x - y$ 可以精确表示），问题在于参与相减的 $a$、$b$ 本身已经带有之前的舍入误差。相减把前面相同的有效数字全部消掉，剩下的位里误差占比骤增。误差放大倍数约为 $|a|/|a - b|$，即**条件数**：
+
+$$
+\frac{|\Delta(a-b)|}{|a-b|} \lesssim \frac{|a| + |b|}{|a - b|}\, u .
+$$ {#eq-cancellation}
+
+::: {.callout-note collapse="true" title="完整推导：相减的误差放大，以及两个改写例子"}
+设 $\hat a = a(1+\delta_a)$、$\hat b = b(1+\delta_b)$，$|\delta_a|, |\delta_b| \le u$，是之前计算留下的误差。即使减法本身精确，
+
+$$
+\hat a - \hat b = (a - b) + a\delta_a - b\delta_b ,
+\qquad
+\frac{|(\hat a - \hat b) - (a-b)|}{|a-b|} \le \frac{|a| + |b|}{|a-b|}\,u .
+$$
+
+$a \approx b$ 时右端的放大因子可以任意大。这与 M02.1 中线性方程组的条件数是同一个概念：问题本身对输入扰动敏感，换任何算法都无法完全消除；但如果相减是算法自己引入的，就可以通过改写避免。
+
+**例 1：$1 - \cos x$。** $x \to 0$ 时 $\cos x \to 1$，放大因子约 $2/(x^2/2) = 4/x^2$。$x = 10^{-8}$ 时 $\cos x$ 与 1 的差约 $5\times10^{-17}$，小于 1 附近间距的一半，`1 - cos(x)` 直接得 0。改写成 $2\sin^2(x/2)$ 后没有相减，结果正确。
+
+**例 2：方差的一遍公式。** $\mathrm{Var}(x) = \overline{x^2} - \bar x^2$。若数据为 $c + \xi$，$c$ 为公共偏移，$\xi$ 的方差为 $\sigma^2$，则两项都约为 $c^2$，放大因子约 $2c^2/\sigma^2$。$c = 10^4$、$\sigma = 10^{-3}$ 时约 $2\times10^{14}$，乘以 $u\approx10^{-16}$ 后相对误差到 $10^{-2}$ 量级。两遍公式 $\overline{(x-\bar x)^2}$ 先去掉偏移，没有这个问题。notebook 第 4 节的数值与这两个估计一致。
+:::
+
+### 5.4 Amdahl 定律
+
+一个程序中比例为 $p$ 的部分可以完美并行到 $N$ 个核上，其余 $1-p$ 只能串行，则加速比为
+
+$$
+S(N) = \frac{1}{(1-p) + p/N}, \qquad \lim_{N\to\infty} S(N) = \frac{1}{1-p} .
+$$ {#eq-amdahl}
+
+$p = 0.9$ 时，核再多加速比也不超过 10。进程池的启动、数据序列化、结果汇总都属于串行部分。拖动 @fig-amdahl 的滑块观察 $p$ 的影响。
+
+```{python}
+#| label: fig-amdahl
+#| fig-cap: "Amdahl 定律（交互图）。滑块改变可并行比例 $p$；虚线是理想的线性加速。$p$ 从 0.9 到 0.99 的变化，比把核数从 16 加到 64 更重要。"
+import plotly.graph_objects as go
+
+cores = np.arange(1, 129)
+ps = [0.5, 0.75, 0.9, 0.95, 0.99, 0.999]
+start = 2
+fig = go.Figure()
+fig.add_scatter(x=cores, y=cores, mode="lines", name="线性加速 S = N",
+                line=dict(color=GRAY, width=1.5, dash="dash"))
+for i, p in enumerate(ps):
+    s = 1 / ((1 - p) + p / cores)
+    fig.add_scatter(x=cores, y=s, mode="lines", name=f"p = {p}", visible=(i == start),
+                    line=dict(color=BLUE, width=2.5))
+steps = [
+    dict(method="update", label=str(p),
+         args=[{"visible": [True] + [j == i for j in range(len(ps))]},
+               {"title.text": f"p = {p}：上限 1/(1−p) = {1 / (1 - p):.0f}，"
+                              f"N = 16 时 S = {1 / ((1 - p) + p / 16):.1f}"}])
+    for i, p in enumerate(ps)
+]
+p0 = ps[start]
+fig.update_layout(**plotly_layout(
+    title=dict(text=f"p = {p0}：上限 1/(1−p) = {1 / (1 - p0):.0f}，"
+                    f"N = 16 时 S = {1 / ((1 - p0) + p0 / 16):.1f}",
+               font=dict(size=13, color=MUTED), x=0.02),
+    sliders=[dict(active=start, steps=steps, currentvalue=dict(prefix="p = "), pad=dict(t=30))],
+    xaxis=dict(title="核数 N", type="log", gridcolor="#e4e2da"),
+    yaxis=dict(title="加速比 S(N)", type="log", gridcolor="#e4e2da"),
+    margin=dict(l=55, r=20, t=70, b=40), height=440,
+))
+plotly_html(fig)
+```
+
+## 6. 算法与实现要点
+
+**I/O 的代价在系统调用和格式转换。** 每次无缓冲的 `write` 都要进出一次内核。Python 的文件对象默认带缓冲，把小块写入攒成大块；但每步打开、写一行、关闭文件，缓冲就失效了。文本格式还要做数值与字符串的相互转换，并且体积更大。notebook 第 7 节中，同一个 $10^6\times3$ 数组用 `np.savetxt` 写出比 `np.save` 慢约 300 倍，文件大约 3 倍。大量数值数据用二进制格式（`.npy`、HDF5），文本格式（如 extxyz）留给需要人读或跨程序交换的场合，见 [M01.1](01-advanced-python.qmd) 的序列化部分。
+
+**进程池要复用，任务要够大。** 启动进程池、在 `spawn` 下重新导入模块，在本机约需 0.1 秒（notebook 第 6 节）。任务小于这个量级时，并行得不偿失。用 `ProcessPoolExecutor.map` 的 `chunksize` 参数把许多小任务打包，或者干脆让每个任务处理一批文件。
+
+**防止线程超额订阅。** NumPy 背后的 BLAS 默认使用多个线程。外层再开 $k$ 个进程，总线程数就是 $k$ 乘以 BLAS 线程数，远超核数时反而变慢。在集群上尤其要在作业脚本中设置 `OMP_NUM_THREADS` 等环境变量，或用 `threadpoolctl` 在代码里限制。
+
+**浮点比较不用 `==`。** 用 `math.isclose` 或 `np.isclose`，容差按问题的量级和条件数选。不要把浮点数用作字典键或集合元素来判断“相同的构型”，先按容差取整或用整数格点编码。
+
+**网络与 HTTP（P2，只作了解）。** 调用材料数据库或计算服务的 REST API 时，一次请求的耗时主要是网络往返延迟，而不是带宽。批量查询优于逐条查询；并发请求属于等待型任务，用线程或 `asyncio`；遵守服务的速率限制并缓存结果。HTTP 状态码 4xx 表示请求本身有问题（参数、认证、限流），5xx 表示服务端出错，后者才值得带退避地重试。
+
+## 7. 实例 Notebook
+
+实例讲解见 [notebooks/04-computer-systems.ipynb](../notebooks/04-computer-systems.ipynb)。全部单元在 CPU 上约 20–30 秒跑完，计时类结果依赖机器，只看相对量。
+
+| notebook 小节 | 内容 | 对应讲义 |
+|---|---|---|
+| 1. 本机的硬件参数 | 核数、缓存行、缓存大小、GIL 状态 | 4.1、4.3 |
+| 2. 缓存局部性 | 步长访问的台阶；顺序与随机 gather 随数组大小的变化 | 4.1 |
+| 3. 浮点数长什么样 | 用 `struct` 拆出符号、指数、尾数；`np.finfo`；`np.spacing`；`0.1 + 0.2` | 4.2，@eq-float-value、@eq-eps |
+| 4. 灾难性抵消 | $1-\cos x$ 与方差一遍公式的失效与改写 | 5.3 |
+| 5. 累加误差 | float32 逐项、Kahan、`np.sum`、float64 的对比 | 5.2，@eq-sum-error |
+| 6. GIL：线程与进程 | CPU 密集与等待型任务的加速比；进程池启动开销；BLAS 与外层线程 | 4.3、5.4、第 6 节 |
+| 7. I/O | 小块写入与系统调用；文本与二进制格式 | 第 6 节 |
+
+运行方式：在 VS Code 中打开 notebook，选择仓库 `.venv` 的内核，从上到下运行；改动后用 `make nb M=01` 重新执行并保存输出。本章 notebook 覆盖 Level 1（Kahan 求和、比特拆解等从零实现）和 Level 2（`concurrent.futures`、`np.finfo` 等标准接口）。
+
+## 8. 领域连接
+
+**MD 与邻居搜索的内存访问。** 力计算的核心是按邻居表 gather 原子坐标。原子在内存中的顺序与空间位置无关时，这个 gather 就是随机访问；按空间格子排序后接近顺序访问。[M01.2](02-data-structures-algorithms.qmd) 的 cell list 和本章的局部性是同一个问题的两面：前者减少需要检查的原子对，后者让每次检查更便宜。
+
+**大规模稀疏矩阵。** 无序体系的紧束缚哈密顿量是大型稀疏矩阵，稀疏矩阵–向量乘法每读一个非零元只做两次浮点运算，速度由内存带宽而不是 CPU 决定。这是锚点 A4（大尺度无序体系的电子结构）中性能问题的根源，也是本模块以 A4 为锚点的原因。
+
+**能量与统计量的数值精度。** DFT 总能量通常是 $-10^3$ 到 $-10^5$ eV 量级，而形成能、相变能是 meV 到 eV 级的差值，这正是 @eq-cancellation 描述的情形。总能量本身以双精度保存是足够的，但在后处理中对大量构型的能量做统计时，应先减去参考能量再求均值和方差。
+
+**并行后处理。** 解析成千上万个 VASP 输出文件是典型的“CPU 密集 + I/O”混合任务：文本解析是纯 Python，适合进程池；文件读取在共享文件系统上可能是瓶颈，任务数超过存储系统的承受能力反而更慢。
+
+## 9. 常见误区与失败模式
+
+::: {.callout-warning title="计时结果要看相对量，并且要重复测量"}
+单次计时受后台进程、CPU 频率调节、缓存冷热影响很大。至少重复几次取最小值或中位数，比较同一台机器上不同实现的相对快慢，不要把某台机器上的绝对时间当作结论。
+:::
+
+其余常见问题如下。
+
+- 把 `0.1 + 0.2 == 0.3` 的失败当成 bug；它是二进制无法精确表示 0.1 的必然结果。
+- 用 float32 累计模拟时间或长轨迹的位移：$10^7$ fs 处 float32 的间距已经是 1 fs，再加 0.5 fs 的时间步会被整个舍掉。
+- 用多线程加速纯 Python 循环，或者反过来，用进程池并行一个本来就多线程的 NumPy 运算。
+- 在 notebook 或 `if __name__ == "__main__":` 保护之外直接使用 `ProcessPoolExecutor`，在 macOS 上报错或反复启动子进程。
+- 每个任务都新建一个进程池，启动开销吞掉全部收益。
+- 在循环里逐行写日志文件且每次打开关闭；或者用文本格式保存 GB 级轨迹。
+- 认为“用了 float64 就没有数值问题”。条件数大的运算（大数相减、病态线性方程组）在任何精度下都会损失有效数字，只是损失的起点不同。
+
+## 10. 小结
+
+- 数据按缓存行在存储层次之间搬运；顺序访问利用了空间局部性和预取，随机访问在数据超出缓存后慢数倍。
+- 浮点数按 @eq-float-value 编码，相邻数的相对间距约为 $\varepsilon_{\text{mach}}$；单次运算的相对误差不超过 $u$（@eq-rounding）。
+- 误差的放大来自传播：逐项累加误差随 $n$ 增长（@eq-sum-error），大数相减按条件数放大误差（@eq-cancellation）；改写算法往往比提高精度更有效。
+- GIL 使纯 Python 的 CPU 密集任务只能用进程并行；等待型任务和释放 GIL 的 C 扩展可以用线程。
+- 并行加速受串行部分限制（@eq-amdahl）；进程启动、序列化、I/O 都算串行开销。
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::
+
+## 12. 参考资料
+
+- Bryant, R. E., O'Hallaron, D. R. *Computer Systems: A Programmer's Perspective*, 3rd ed. Pearson, 2016. <https://csapp.cs.cmu.edu/3e/home.html>
+- Goldberg, D. What every computer scientist should know about floating-point arithmetic. *ACM Computing Surveys* **23**(1), 5–48 (1991). <https://doi.org/10.1145/103162.103163>（重印版：<https://docs.oracle.com/cd/E19957-01/806-3568/ncg_goldberg.html>）
+- Drepper, U. *What Every Programmer Should Know About Memory*. Red Hat, 2007. <https://people.freebsd.org/~lstewart/articles/cpumemory.pdf>
+- Python Software Foundation. `multiprocessing` — Process-based parallelism；`concurrent.futures` — Launching parallel tasks；Python support for free threading. <https://docs.python.org/3/library/multiprocessing.html>
+- LAMMPS Documentation. `atom_modify` command（`sort` 关键字）. <https://docs.lammps.org/atom_modify.html>
