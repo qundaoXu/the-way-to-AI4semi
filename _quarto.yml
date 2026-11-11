@@ -1,0 +1,165 @@
+project:
+  type: website
+  output-dir: _site
+  # 渲染范围：首页、课程目录、模块 README 与讲义、学习路径、文档、项目说明、资料清单。
+  # solutions/、tests/、src/、datasets/、progress/ 不进入网站。
+  render:
+    - index.qmd
+    - CURRICULUM.md
+    # Quarto 的通配不匹配 README.md，这里逐个列出
+    - modules/01-cs-foundations/README.md
+    - modules/02-mathematics-statistics/README.md
+    - modules/03-data-science/README.md
+    - modules/04-classical-machine-learning/README.md
+    - modules/05-deep-learning/README.md
+    - modules/06-advanced-ai/README.md
+    - modules/07-scientific-machine-learning/README.md
+    - modules/08-semiconductor-data-science/README.md
+    - modules/09-ml-engineering-mlops/README.md
+    - modules/10-llm-rag-agents/README.md
+    - modules/11-hpc-gpu-computing/README.md
+    - modules/12-advanced-topics/README.md
+    - "modules/*/notes/*.qmd"
+    - modules/04-classical-machine-learning/exercises/README.md
+    - "modules/*/concept-map.qmd"
+    - "learning-paths/*.md"
+    - "docs/*.md"
+    - "projects/README.md"
+    - "projects/*/README.md"
+    - "resources/*.md"
+  preview:
+    port: 4848
+    browser: true
+
+lang: zh
+
+website:
+  title: "半导体 AI 学习库"
+  search:
+    location: navbar
+    type: overlay
+  page-navigation: true
+  back-to-top-navigation: true
+  navbar:
+    left:
+      - text: 首页
+        href: index.qmd
+      - text: 课程目录
+        href: CURRICULUM.md
+      - text: 学习路径
+        menu:
+          - text: "Path A · Core CS / AI"
+            href: learning-paths/path-a-core-cs-ai.md
+          - text: "Path B · AI for Science（主路径）"
+            href: learning-paths/path-b-ai-for-science.md
+          - text: "Path C · Semiconductor Industrial AI"
+            href: learning-paths/path-c-semiconductor-industrial-ai.md
+          - text: "Path D · Hardware for AI"
+            href: learning-paths/path-d-hardware-for-ai.md
+      - text: 文档
+        menu:
+          - text: 快速开始
+            href: docs/getting-started.md
+          - text: 学习指南
+            href: docs/learning-guide.md
+          - text: 研究锚点
+            href: docs/research-anchors.md
+          - text: 数学符号
+            href: docs/math-notation.md
+          - text: 术语表
+            href: docs/glossary.md
+          - text: 代码规范
+            href: docs/coding-standards.md
+          - text: Agent 指令库
+            href: docs/agent-prompts.md
+      - text: 项目
+        href: projects/README.md
+      - text: 资料
+        menu:
+          - text: 教材
+            href: resources/textbooks.md
+          - text: 课程
+            href: resources/courses.md
+          - text: 论文
+            href: resources/papers.md
+          - text: 官方文档
+            href: resources/documentation.md
+          - text: 代码仓库
+            href: resources/repositories.md
+  # 侧边栏按模块分组；每组的讲义列表由目录通配自动生成，只显示已建设的讲义。
+  sidebar:
+    style: docked
+    collapse-level: 1
+    contents:
+      - section: "01 计算机基础"
+        href: modules/01-cs-foundations/README.md
+        contents: "modules/01-cs-foundations/notes/*.qmd"
+      - section: "02 数学、统计与最优化"
+        href: modules/02-mathematics-statistics/README.md
+        contents: "modules/02-mathematics-statistics/notes/*.qmd"
+      - section: "03 数据科学"
+        href: modules/03-data-science/README.md
+        contents: "modules/03-data-science/notes/*.qmd"
+      - section: "04 传统机器学习"
+        href: modules/04-classical-machine-learning/README.md
+        contents: "modules/04-classical-machine-learning/notes/*.qmd"
+      - section: "05 深度学习"
+        href: modules/05-deep-learning/README.md
+        contents: "modules/05-deep-learning/notes/*.qmd"
+      - section: "06 现代 AI 架构"
+        href: modules/06-advanced-ai/README.md
+        contents: "modules/06-advanced-ai/notes/*.qmd"
+      - section: "07 科学机器学习"
+        href: modules/07-scientific-machine-learning/README.md
+        contents: "modules/07-scientific-machine-learning/notes/*.qmd"
+      - section: "08 半导体制造数据科学"
+        href: modules/08-semiconductor-data-science/README.md
+        contents: "modules/08-semiconductor-data-science/notes/*.qmd"
+      - section: "09 ML 工程与 MLOps"
+        href: modules/09-ml-engineering-mlops/README.md
+        contents: "modules/09-ml-engineering-mlops/notes/*.qmd"
+      - section: "10 大语言模型、RAG 与 Agent"
+        href: modules/10-llm-rag-agents/README.md
+        contents: "modules/10-llm-rag-agents/notes/*.qmd"
+      - section: "11 高性能计算与 GPU"
+        href: modules/11-hpc-gpu-computing/README.md
+        contents: "modules/11-hpc-gpu-computing/notes/*.qmd"
+      - section: "12 进阶与前沿专题"
+        href: modules/12-advanced-topics/README.md
+        contents: "modules/12-advanced-topics/notes/*.qmd"
+
+format:
+  html:
+    theme:
+      light: [cosmo, theme/semiai.scss]
+      dark: [cosmo, theme/semiai.scss, theme/semiai-dark.scss]
+    respect-user-color-scheme: true   # 首次打开时跟随系统的浅色 / 深色设置
+    toc: true
+    toc-depth: 3
+    toc-title: 本页目录
+    lightbox: true            # 图片点击放大
+    code-copy: true
+    code-overflow: wrap
+    highlight-style:
+      light: github
+      dark: github-dark
+    html-math-method: mathjax # LaTeX 环境支持最全；见 docs/getting-started.md
+    link-external-newwindow: true
+    smooth-scroll: true
+    grid:
+      sidebar-width: 270px
+      body-width: 740px
+      margin-width: 290px
+      gutter-width: 1.6rem
+
+# 只修改文字或批注时不重复执行代码；_freeze/ 提交到仓库。
+execute:
+  freeze: auto
+  cache: true
+
+filters:
+  - at: pre-ast
+    path: theme/semiai.lua
+
+editor:
+  render-on-save: true

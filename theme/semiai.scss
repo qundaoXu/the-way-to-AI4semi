@@ -1,0 +1,384 @@
+/*-- scss:defaults --*/
+
+// 字体：正文衬线（西文在前，中文回退到思源宋体 / 系统宋体），标题与界面无衬线，代码等宽。
+// 全部使用本机字体，按顺序回退，不加载网络字体。
+$semiai-font-body: "Charter", "Iowan Old Style", "Georgia", "Source Han Serif SC",
+  "Noto Serif CJK SC", "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif !default;
+$font-family-sans-serif: -apple-system, "PingFang SC", "Source Han Sans SC", "Noto Sans CJK SC",
+  "Noto Sans SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif !default;
+$font-family-monospace: "JetBrains Mono", "SF Mono", "Menlo", "Consolas", "Sarasa Mono SC",
+  monospace !default;
+
+$font-size-root: 17px !default;
+$line-height-base: 1.75 !default;
+$headings-font-weight: 600 !default;
+
+// 浅色模式：低眩光的暖白背景
+$body-bg: #fbfaf6 !default;
+$body-color: #26251f !default;
+$link-color: #1f5fae !default;
+$code-bg: #f1efe8 !default;
+$code-color: #8a3324 !default;
+
+$semiai-muted: #6b6a63 !default;
+$semiai-border: #e2dfd5 !default;
+$semiai-panel: #f4f2eb !default;
+
+// 批注颜色：学习者的批注用暖色系，Agent 的回答用冷色
+$anno-note: #b7791f !default;
+$anno-question: #c2410c !default;
+$anno-bug: #b91c1c !default;
+$anno-idea: #15803d !default;
+$anno-tutor: #1d6fb8 !default;
+$anno-tint: 7% !default;
+
+// 学习状态颜色（首页与页眉）
+$state-not-started: #c9c6ba !default;
+$state-reading: #2a78d6 !default;
+$state-practicing: #eb6834 !default;
+$state-reviewed: #1baf7a !default;
+$state-mastered: #008300 !default;
+
+/*-- scss:rules --*/
+
+// ---------------------------------------------------------------- 版式
+
+main.content {
+  font-family: $semiai-font-body;
+
+  p {
+    margin-bottom: 1.05em;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  .quarto-title-block {
+    font-family: $font-family-sans-serif;
+  }
+
+  h2 {
+    margin-top: 2.4em;
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid $semiai-border;
+  }
+
+  h3 {
+    margin-top: 1.8em;
+  }
+
+  table {
+    font-family: $font-family-sans-serif;
+    font-size: 0.88em;
+
+    td,
+    th {
+      text-align: left;
+    }
+  }
+}
+
+.subtitle {
+  color: $semiai-muted;
+}
+
+code,
+pre {
+  font-size: 0.86em;
+}
+
+figcaption,
+.figure-caption,
+.table-caption {
+  font-family: $font-family-sans-serif;
+  font-size: 0.86em;
+  color: $semiai-muted;
+  text-align: left;
+}
+
+// 图：固定浅色衬底，深色模式下也能看清 matplotlib / Plotly 输出
+.quarto-figure img,
+.cell-output-display img {
+  background: #fcfcfb;
+  border-radius: 6px;
+  max-width: 100%;
+  height: auto;
+}
+
+// 页边栏内容
+.column-margin,
+.margin-caption,
+.aside {
+  font-family: $font-family-sans-serif;
+  font-size: 0.82em;
+  line-height: 1.6;
+  color: $semiai-muted;
+
+  p {
+    text-align: left;
+  }
+}
+
+mark,
+.mark {
+  background: mix($anno-note, $body-bg, 28%);
+  color: inherit;
+  padding: 0.05em 0.15em;
+  border-radius: 2px;
+}
+
+// ---------------------------------------------------------------- 页眉与编辑按钮
+
+.semiai-pagebar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.7rem;
+  margin: -0.4rem 0 1.8rem;
+  padding: 0.55rem 0.8rem;
+  font-family: $font-family-sans-serif;
+  font-size: 0.8rem;
+  color: $semiai-muted;
+  background: $semiai-panel;
+  border: 1px solid $semiai-border;
+  border-radius: 8px;
+
+  a {
+    text-decoration: none;
+  }
+}
+
+// 非章节页面只有编辑按钮：不画面板
+.semiai-pagebar-plain {
+  padding: 0;
+  margin-bottom: 0.6rem;
+  background: none;
+  border: none;
+}
+
+.semiai-chip {
+  padding: 0.05rem 0.5rem;
+  border: 1px solid $semiai-border;
+  border-radius: 999px;
+  background: $body-bg;
+  color: $body-color;
+  font-weight: 600;
+}
+
+.semiai-chip-id {
+  font-family: $font-family-monospace;
+}
+
+.semiai-label {
+  margin-right: 0.35rem;
+  opacity: 0.75;
+}
+
+.semiai-state {
+  font-weight: 600;
+  color: $body-color;
+
+  &::before {
+    content: "";
+    display: inline-block;
+    width: 0.55em;
+    height: 0.55em;
+    margin-right: 0.35em;
+    border-radius: 50%;
+    background: $state-not-started;
+  }
+}
+
+.semiai-learn-reading::before { background: $state-reading; }
+.semiai-learn-practicing::before { background: $state-practicing; }
+.semiai-learn-reviewed::before { background: $state-reviewed; }
+.semiai-learn-mastered::before { background: $state-mastered; }
+.semiai-build-draft::before { background: $state-practicing; }
+.semiai-build-reviewed::before { background: $state-reading; }
+.semiai-build-verified::before { background: $state-mastered; }
+
+.semiai-edit {
+  margin-left: auto;
+  padding: 0.1rem 0.6rem;
+  border: 1px solid $semiai-border;
+  border-radius: 6px;
+  background: $body-bg;
+  color: $link-color;
+  font-weight: 600;
+
+  &:hover {
+    border-color: $link-color;
+  }
+}
+
+a.semiai-source-link::after {
+  content: " ↗";
+  font-size: 0.8em;
+  opacity: 0.6;
+}
+
+// ---------------------------------------------------------------- 批注（第 6.5 节）
+
+@mixin anno($color, $label) {
+  > .callout {
+    border-left-color: $color !important;
+    background: mix($color, $body-bg, $anno-tint);
+
+    > .callout-header {
+      background: mix($color, $body-bg, $anno-tint * 2) !important;
+      color: $body-color;
+      font-family: $font-family-sans-serif;
+
+      .callout-icon::before {
+        filter: none;
+      }
+
+      &::after {
+        content: $label;
+        margin-left: auto;
+        padding: 0 0.5rem;
+        font-size: 0.72rem;
+        font-weight: 600;
+        white-space: nowrap;
+        color: $color;
+        border: 1px solid $color;
+        border-radius: 999px;
+        align-self: center;
+      }
+    }
+  }
+}
+
+.anno {
+  margin: 1.2rem 0;
+  scroll-margin-top: 5rem;
+
+  > .callout {
+    margin: 0;
+    border-left-width: 5px;
+  }
+
+  &:target > .callout {
+    outline: 2px solid $link-color;
+    outline-offset: 3px;
+  }
+}
+
+.anno-note { @include anno($anno-note, "我的批注"); }
+.anno-question { @include anno($anno-question, "我的疑问 · 未解决"); }
+.anno-bug { @include anno($anno-bug, "勘误 · 未处理"); }
+.anno-idea { @include anno($anno-idea, "研究联想"); }
+.anno-tutor { @include anno($anno-tutor, "Agent 解答"); }
+
+.anno-question.anno-resolved > .callout > .callout-header::after { content: "我的疑问 · 已解决"; }
+.anno-bug.anno-resolved > .callout > .callout-header::after { content: "勘误 · 已处理"; }
+
+.anno-resolved > .callout {
+  opacity: 0.72;
+}
+
+// Agent 的回答紧跟在疑问下方时向右缩进，形成问答关系
+.anno-question + .anno-tutor,
+.anno-bug + .anno-tutor {
+  margin-top: -0.6rem;
+  margin-left: 1.5rem;
+}
+
+// ---------------------------------------------------------------- 首页仪表盘
+
+.dash-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.8rem;
+  margin: 1.2rem 0 2rem;
+  font-family: $font-family-sans-serif;
+}
+
+.dash-tile {
+  padding: 0.8rem 1rem;
+  background: $semiai-panel;
+  border: 1px solid $semiai-border;
+  border-radius: 10px;
+
+  .dash-value {
+    font-size: 1.7rem;
+    font-weight: 650;
+    line-height: 1.2;
+    color: $body-color;
+  }
+
+  .dash-label {
+    font-size: 0.8rem;
+    color: $semiai-muted;
+  }
+}
+
+.dash-modules {
+  font-family: $font-family-sans-serif;
+  font-size: 0.85rem;
+  margin: 1rem 0 0.6rem;
+
+  .dash-row {
+    display: grid;
+    grid-template-columns: minmax(9rem, 15rem) 1fr 9.5rem;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.28rem 0;
+  }
+
+  .dash-name a {
+    text-decoration: none;
+  }
+
+  .dash-count {
+    color: $semiai-muted;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+}
+
+.dash-bar {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: transparent;
+
+  span {
+    display: block;
+    height: 100%;
+    min-width: 3px;
+  }
+}
+
+.dash-seg-not-started { background: $state-not-started; }
+.dash-seg-reading { background: $state-reading; }
+.dash-seg-practicing { background: $state-practicing; }
+.dash-seg-reviewed { background: $state-reviewed; }
+.dash-seg-mastered { background: $state-mastered; }
+.dash-seg-unbuilt {
+  background: transparent;
+  border: 1px dashed $state-not-started;
+  border-radius: 5px;
+  box-sizing: border-box;
+}
+
+.dash-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1rem;
+  font-family: $font-family-sans-serif;
+  font-size: 0.78rem;
+  color: $semiai-muted;
+  margin-bottom: 1.5rem;
+
+  i {
+    display: inline-block;
+    width: 0.9em;
+    height: 0.6em;
+    margin-right: 0.35em;
+    border-radius: 2px;
+  }
+}

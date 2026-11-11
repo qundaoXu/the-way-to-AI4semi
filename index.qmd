@@ -1,0 +1,171 @@
+---
+title: 半导体 AI 学习库
+subtitle: 面向半导体 AI for Science 的个人 CS / AI 学习仓库
+toc: true
+execute:
+  freeze: false   # 首页每次渲染都重新读取 progress/status.json
+  cache: false
+  echo: false
+---
+
+```{python}
+#| output: asis
+import json
+from datetime import date
+from html import escape
+from pathlib import Path
+
+root = Path.cwd()
+while not (root / "curriculum.yaml").is_file() and root != root.parent:
+    root = root.parent
+status = json.loads((root / "progress" / "status.json").read_text("utf-8"))
+
+LEARN = ["Mastered", "Reviewed", "Practicing", "Reading", "Not Started"]
+ACTIVE = ("Reading", "Practicing")
+chapters = status["chapters"]
+totals = status["totals"]
+slug = lambda s: s.lower().replace(" ", "-")
+
+
+def chapter_link(ch):
+    label = f"{ch['id']} {ch['title_zh']}"
+    return f"[{label}]({ch['note']})" if ch["note_exists"] else label
+
+
+def tile(value, label):
+    return f'<div class="dash-tile"><div class="dash-value">{value}</div><div class="dash-label">{label}</div></div>'
+
+
+# ---------------------------------------------------------------- 概览
+in_progress = sum(totals["learn"][s] for s in ACTIVE)
+last = status.get("last_test")
+if last:
+    s = last["summary"]
+    ran = s.get("passed", 0) + s.get("failed", 0)
+    test_value = f'{s.get("passed", 0)}/{ran}'
+else:
+    test_value = "—"
+
+print('<div class="dash-grid">')
+print(tile(f'{totals["built"]}/{totals["chapters"]}', "已建设章节"))
+print(tile(in_progress, "正在学习"))
+print(tile(totals["learn"]["Reviewed"] + totals["learn"]["Mastered"], "Reviewed / Mastered"))
+print(tile(len(status["open_annotations"]), "未解决的疑问与勘误"))
+print(tile(test_value, "最近一次练习测试通过"))
+print("</div>\n")
+
+# ---------------------------------------------------------------- 当前阶段
+print("## 当前阶段\n")
+roadmap = root / "ROADMAP.md"
+if roadmap.is_file():
+    print("个人化路线见 [ROADMAP.md](ROADMAP.md)。\n")
+else:
+    print(
+        "**阶段 0：仓库初始化与诊断（第 1–2 周）。** 仓库骨架与试点章节 M04.2 已就绪。"
+        "下一步是 Phase 1b：为 Module 01–05 做诊断测评，据此生成个人化的 `ROADMAP.md`。"
+        "默认的 12 个月计划见 [Path B](learning-paths/path-b-ai-for-science.md)。\n"
+    )
+
+# ---------------------------------------------------------------- 接下来的章节
+print("## 接下来的章节\n")
+queue = [c for c in chapters if c["learn_status"] in ACTIVE]
+queue += [c for c in chapters if c["note_exists"] and c["learn_status"] == "Not Started"]
+if queue:
+    print("| 章节 | 优先级 | 学习状态 | 建设状态 |")
+    print("|---|---|---|---|")
+    for ch in queue[:3]:
+        print(f"| {chapter_link(ch)} | {ch['priority']} | {ch['learn_status']} | {ch['build_status']} |")
+    print()
+    if len(queue) < 3:
+        print("讲义按即时建设原则创建，最多领先学习进度两章。需要新章节时，让 Agent 以 BUILD 模式建设。\n")
+else:
+    print("没有已建设且未学完的章节。让 Agent 以 BUILD 模式建设 `ROADMAP.md` 中的下一章。\n")
+
+# ---------------------------------------------------------------- 模块进度
+print("## 模块进度\n")
+print('<div class="dash-modules">')
+for m in status["modules"]:
+    n = m["chapters"]
+    segs = []
+    for state in LEARN:
+        count = m["learn"][state]
+        if state == "Not Started":
+            count = m["built"] - sum(m["learn"][s] for s in LEARN[:-1])
+        if count > 0:
+            segs.append(f'<span class="dash-seg-{slug(state)}" style="flex:{count}" title="{state}: {count}"></span>')
+    unbuilt = n - m["built"]
+    if unbuilt > 0:
+        segs.append(f'<span class="dash-seg-unbuilt" style="flex:{unbuilt}" title="尚未建设: {unbuilt}"></span>')
+    done = m["learn"]["Reviewed"] + m["learn"]["Mastered"]
+    print(
+        f'<div class="dash-row"><div class="dash-name"><a href="{m["dir"]}/README.html">'
+        f'{m["id"][1:]} {escape(m["title_zh"])}</a></div>'
+        f'<div class="dash-bar">{"".join(segs)}</div>'
+        f'<div class="dash-count">{done}/{n} 完成 · {m["built"]} 已建</div></div>'
+    )
+print("</div>")
+legend = [("mastered", "Mastered"), ("reviewed", "Reviewed"), ("practicing", "Practicing"),
+          ("reading", "Reading"), ("not-started", "已建设、未开始"), ("unbuilt", "尚未建设")]
+print('<div class="dash-legend">' + "".join(
+    f'<span><i class="dash-seg-{k}"></i>{v}</span>' for k, v in legend) + "</div>\n")
+print("每章的状态明细见[课程总目录](CURRICULUM.md)。\n")
+
+# ---------------------------------------------------------------- 疑问与勘误
+print("## 未解决的疑问与勘误\n")
+KIND = {"question": "疑问", "bug": "勘误"}
+if status["open_annotations"]:
+    for a in status["open_annotations"]:
+        where = a["chapter"] or a["file"]
+        excerpt = f"：{a['excerpt']}" if a["excerpt"] else ""
+        print(f"- **{KIND.get(a['kind'], a['kind'])}** · {where} · [{a['title']}]({a['file']}#{a['anchor']}){excerpt}")
+    print("\n让 Agent 以 TUTOR 模式（疑问）或 VERIFY 模式（勘误）处理；确认解决后把 `.anno-open` 改为 `.anno-resolved`。\n")
+else:
+    print("目前没有。阅读讲义时用代码片段 `aq`（疑问）或 `ab`（勘误）在原处插入批注，它们会汇总到这里。\n")
+
+# ---------------------------------------------------------------- 到期复测
+print("## 到期复测\n")
+today = date.today().isoformat()
+due = sorted((c for c in chapters if c["next_review"] and c["next_review"] <= today),
+             key=lambda c: c["next_review"])
+upcoming = sorted((c for c in chapters if c["next_review"] and c["next_review"] > today),
+                  key=lambda c: c["next_review"])
+if due:
+    for ch in due:
+        print(f"- {chapter_link(ch)}：应于 {ch['next_review']} 复测")
+    print()
+elif upcoming:
+    ch = upcoming[0]
+    print(f"今天没有到期的复测。最近一次：{chapter_link(ch)}，{ch['next_review']}。\n")
+else:
+    print("还没有安排复测。章节达到 `Mastered` 后，在讲义 frontmatter 的 `next_review` 填写日期（约 1 个月和 3 个月后各一次）。\n")
+
+# ---------------------------------------------------------------- 测试结果
+print("## 最近一次练习测试\n")
+if last:
+    s = last["summary"]
+    when = (last.get("timestamp") or "")[:16].replace("T", " ")
+    scope = " ".join(last.get("args") or [])
+    print(f"{when} · 目标 `{last.get('target')}` · `{scope}`\n")
+    print(f"通过 **{s.get('passed', 0)}**，失败 **{s.get('failed', 0)}**，跳过 {s.get('skipped', 0)}。\n")
+    if last.get("failed"):
+        print("尚未通过的测试：\n")
+        for nodeid in last["failed"][:12]:
+            print(f"- `{nodeid.split('::', 1)[-1]}`（{Path(nodeid.split('::')[0]).name}）")
+        if len(last["failed"]) > 12:
+            print(f"- ……其余 {len(last['failed']) - 12} 条见 `progress/test-results.json`")
+        print()
+else:
+    print("还没有记录。运行 `make ex M=04` 后，结果会显示在这里。\n")
+```
+
+## 怎么用这个仓库
+
+阅读在浏览器里的学习网站完成，批注、练习和测试在 VS Code 里完成，两者读写的是同一份源文件。
+
+1. `make preview` 启动本地网站，保存源文件后页面自动刷新；
+2. 读讲义时点击页面顶部的“在 VS Code 中编辑”，用代码片段插入批注；
+3. 从讲义的“代码导航”跳到练习，实现后用 `make ex M=04` 或测试面板检查；
+4. 用 `make status ID=M04.2 S=Practicing` 更新学习状态，本页随之更新；
+5. 让 Agent 处理未解决的疑问，或建设下一章。
+
+完整说明见[快速开始](docs/getting-started.md)和[学习指南](docs/learning-guide.md)。

@@ -1,0 +1,54 @@
+{
+  // 批注代码片段（PROJECT_BLUEPRINT.md 第 6.5 节；说明见 docs/learning-guide.md 第 4 节）。
+  // 在 .qmd 文件中输入前缀后按 Tab。类名不要改：样式、首页汇总和 Agent 检索都依赖它。
+  "批注：疑问": {
+    "scope": "quarto,markdown",
+    "prefix": "aq",
+    "description": "疑问（未解决）。Agent 以 TUTOR 模式在其后回答；理解后把 .anno-open 改为 .anno-resolved",
+    "body": [
+      "::: {.callout-important .anno-question .anno-open title=\"${1:一句话写出问题}\"}",
+      "${2:卡在哪里、已经想到哪一步}",
+      ":::",
+      "$0"
+    ]
+  },
+  "批注：我的理解": {
+    "scope": "quarto,markdown",
+    "prefix": "an",
+    "description": "我的理解。Agent 只读",
+    "body": [
+      "::: {.callout-note .anno-note title=\"${1:我的理解}\"}",
+      "$2",
+      ":::",
+      "$0"
+    ]
+  },
+  "批注：勘误": {
+    "scope": "quarto,markdown",
+    "prefix": "ab",
+    "description": "勘误（未处理）。Agent 以 VERIFY 模式核实并修正；确认后把 .anno-open 改为 .anno-resolved",
+    "body": [
+      "::: {.callout-caution .anno-bug .anno-open title=\"勘误\"}",
+      "${1:哪里可能有错，依据是什么}",
+      ":::",
+      "$0"
+    ]
+  },
+  "批注：研究联想": {
+    "scope": "quarto,markdown",
+    "prefix": "ai",
+    "description": "研究联想。Agent 只读；不要写入未发表的研究细节",
+    "body": [
+      "::: {.callout-tip .anno-idea title=\"研究联想\"}",
+      "$1",
+      ":::",
+      "$0"
+    ]
+  },
+  "批注：高亮": {
+    "scope": "quarto,markdown",
+    "prefix": "am",
+    "description": "重点高亮（先选中文字再触发，可包住选中内容）",
+    "body": ["[${TM_SELECTED_TEXT:${1:文字}}]{.mark}$0"]
+  }
+}
