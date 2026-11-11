@@ -24,6 +24,10 @@ dependencies = [
 
 # 其余依赖只在某章节确实需要时才添加（torch、e3nn、ase、xgboost、mlflow 等），
 # 届时放入 [project.optional-dependencies] 的 dl / geometric / atomistic / boosting / mlops。
+# perf：M01.5 高性能科学 Python 用到的 Numba 与 line_profiler，安装方式 `uv sync --extra perf`。
+
+[project.optional-dependencies]
+perf = ["numba", "line-profiler"]
 
 [dependency-groups]
 dev = [

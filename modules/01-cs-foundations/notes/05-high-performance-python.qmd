@@ -1,0 +1,289 @@
+---
+id: M01.5
+title: 高性能科学 Python
+subtitle: High-Performance Scientific Python
+module: M01
+priority: P0
+tags: []
+prereqs: [M01.1]
+anchors: []
+build_status: Draft          # 由 sync_index.py 从 curriculum.yaml 镜像，请勿手改
+learn_status: Not Started    # 学习者所有：Not Started / Reading / Practicing / Reviewed / Mastered
+evidence: []                 # 学习者所有：掌握证据（测试提交、复测记录等）
+next_review:                 # 学习者所有：下次复测日期
+last_reviewed: 2026-11-11
+code-fold: true
+code-summary: "显示绘图代码"
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import AQUA, BLUE, GRAY, GRID, INK, MUTED, ORANGE, SURFACE, use_style
+
+use_style()
+```
+
+## 0. 定位
+
+一段能跑的 NumPy 代码和一段跑得快的 NumPy 代码，差别通常不在算法，而在三件事：数据在内存里怎么排，运算是在 Python 解释器里逐个做还是交给编译好的循环一次做完，以及过程中悄悄复制了多少数据。本章讲清这三件事，再给出“先测量、再优化”的工具链和 Numba 这条退路。后处理一条几百万帧的 MD 轨迹、在几千原子的体系上反复算距离和应力，都直接依赖这些知识。
+
+## 1. 学习目标
+
+学完本章，你应当能够：
+
+- 用 `shape`、`strides`、`dtype` **解释**一个数组如何映射到内存，**判断**一个操作返回视图还是拷贝；
+- **预测**沿不同轴遍历的快慢，并在需要时**选择** C 顺序或 F 顺序；
+- 用广播和 `einsum` **改写**原子对循环，并**估算**中间数组的内存代价；
+- 用 `cProfile` 和 `line_profiler` **定位**热点，遵循“测量—修改—验证—再测量”的流程；
+- **判断**何时该向量化、何时该用 Numba 编译循环，**说明**两者都不改变算法复杂度。
+
+## 2. 前置知识
+
+本章假设你熟悉 [M01.1 Python 进阶](01-advanced-python.qmd)中的函数、装饰器和上下文管理器，并会写基本的 NumPy 代码。缓存行、存储层次等硬件背景归 [M01.4 计算机系统基础](04-computer-systems.qmd)，复杂度和邻居搜索归 [M01.2 数据结构与算法](02-data-structures-algorithms.qmd)，这里只在用到时引用结论。
+
+符号：$N$ 是原子数，$\mathbf{r}_i \in \mathbb{R}^3$ 是第 $i$ 个原子的位置，$L$ 是立方盒子的边长，$V = L^3$。
+
+## 3. 推荐阅读
+
+1. **Gorelick, M., Ozsvald, I. *High Performance Python*（第 2 版，O'Reilly，2020）**：第 2 章（Profiling to Find Bottlenecks）、第 6 章（Matrix and Vector Computation）、第 7 章（Compiling to C，含 Numba）。本章的主干，讲测量方法和每种加速手段背后的机制。章节号与[配套代码仓库](https://github.com/mynameisfiber/high_performance_python_2e)的目录 `02_profiling`、`06_matrix`、`07_compiling` 一致；出版社页面在 2026-11-11 核实时拒绝访问，章节标题 `[待核实]`。
+2. **Rougier, N. P. *From Python to Numpy*（2017，免费在线）**：第 3 章（Anatomy of an array：内存布局、视图与拷贝、临时拷贝）和第 4 章（Code vectorization）。把 strides 和视图讲得最透的材料，配大量图示。[在线阅读](https://www.labri.fr/perso/nrougier/from-python-to-numpy/)
+3. **VanderPlas, J. *Python Data Science Handbook*（免费在线）**：02.05 节（Broadcasting）、02.07 节（Fancy Indexing）。广播规则和花式索引的入门版本。[在线阅读](https://jakevdp.github.io/PythonDataScienceHandbook/)
+
+官方文档中最值得读的三页：NumPy 的 [Copies and views](https://numpy.org/doc/stable/user/basics.copies.html) 与 [Broadcasting](https://numpy.org/doc/stable/user/basics.broadcasting.html)，以及 Numba 的 [A ~5 minute guide to Numba](https://numba.readthedocs.io/en/stable/user/5minguide.html)。
+
+## 4. 核心概念与直觉
+
+### 4.1 数组是一块内存加一套“看法”
+
+先看 @fig-strides。一个 $3 \times 4$ 的 float64 数组在内存里只是 12 个连续的 8 字节数。把它“看成”二维的，靠的是元数据：`shape = (3, 4)` 和 `strides = (32, 8)`，后者说明沿第 0 轴走一步要跨 32 字节，沿第 1 轴走一步跨 8 字节。
+
+```{python}
+#| label: fig-strides
+#| fig-cap: "同一个 $3\\times4$ 数组的两种内存排列。上：C 顺序（行优先），同一行的元素相邻，strides = (32, 8)。下：F 顺序（列优先），同一列的元素相邻，strides = (8, 24)。颜色表示元素所在的行，方格下方是字节偏移；箭头是读取第 0 行时在内存中的跳跃。"
+#| fig-alt: "两条由 12 个方格组成的内存条带，方格内标注二维下标，颜色按行区分。"
+rows, cols = 3, 4
+colors = [BLUE, ORANGE, AQUA]
+fig, axes = plt.subplots(2, 1, figsize=(7.4, 2.9))
+for ax, order, title in [(axes[0], "C", "C 顺序：strides = (32, 8)"),
+                         (axes[1], "F", "F 顺序：strides = (8, 24)")]:
+    idx = [(i, j) for i in range(rows) for j in range(cols)] if order == "C" else \
+          [(i, j) for j in range(cols) for i in range(rows)]
+    for k, (i, j) in enumerate(idx):
+        ax.add_patch(plt.Rectangle((k, 0), 0.92, 0.9, color=colors[i], alpha=0.85))
+        ax.text(k + 0.46, 0.45, f"{i},{j}", ha="center", va="center", color="white", fontsize=10)
+        ax.text(k + 0.46, -0.28, f"{8 * k}", ha="center", va="center", color=MUTED, fontsize=7.5)
+    # 逐行读取第 0 行时的访问顺序
+    row0 = [k for k, (i, j) in enumerate(idx) if i == 0]
+    for a, b in zip(row0[:-1], row0[1:], strict=True):
+        ax.annotate("", (b + 0.46, 1.0), (a + 0.46, 1.0),
+                    arrowprops=dict(arrowstyle="-|>", color=INK, lw=1,
+                                    connectionstyle="arc3,rad=-0.35", shrinkA=2, shrinkB=2))
+    ax.set_title(title, loc="left", fontsize=10, color=INK)
+    ax.set_xlim(-0.2, 12.2)
+    ax.set_ylim(-0.55, 1.7)
+    ax.axis("off")
+fig.tight_layout()
+plt.show()
+```
+
+一般地，下标为 $(i_0, i_1, \dots, i_{d-1})$ 的元素位于
+
+$$
+\text{address}(i_0, \dots, i_{d-1}) = \text{base} + \sum_{k=0}^{d-1} i_k \cdot \text{stride}_k .
+$$ {#eq-address}
+
+@eq-address 是本章的出发点。只要改 `base`、`shape` 和 `strides`，就能在不动数据的前提下得到新数组：转置就是把 strides 倒过来，`a[:, ::2]` 就是把列方向的 stride 翻倍。这类数组叫**视图**（view），它们和原数组共享内存。
+
+::: {.column-margin}
+**类比**：strides 像 LAMMPS dump 文件的列格式。同样一串数，按“每行一个原子、每列一个分量”读，和按“先所有 x 再所有 y”读，得到的是同一组坐标的两种排列。程序按哪种方式扫描，决定了它每次读到的数在内存里离得多远。
+:::
+
+### 4.2 访问顺序决定速度
+
+CPU 从内存读数据不是一个一个读，而是一次读进一整条缓存行（常见为 64 字节）。顺着连续方向扫描，一次读进的 8 个 float64 都会被用上；跨着大 stride 扫描，每次只用其中一个，其余被浪费。在实例 notebook 中，对 $4000 \times 4000$ 的 C 顺序数组逐列求和比逐行求和慢约 9 倍，换成 F 顺序后快慢正好对调。缓存的工作方式见 [M01.4](04-computer-systems.qmd)。
+
+这条规则对 MD 数据最直接的含义是：轨迹数组通常存成 `(n_frames, n_atoms, 3)` 的 C 顺序，**逐帧**处理是连续访问，**逐原子跨帧**（比如算单个原子的 MSD 或速度自相关）则是跨步访问。后一种分析做得多时，先 `np.ascontiguousarray(traj.transpose(1, 0, 2))` 转一次布局，往往比反复跨步读快。
+
+### 4.3 向量化：把循环交给编译好的代码
+
+纯 Python 循环慢，主要不是因为运算本身慢，而是每做一次加法，解释器都要查类型、拆箱、分派、装箱。设每次迭代的解释器开销为 $c_{\text{interp}}$，真正的运算为 $c_{\text{op}}$，则对 $n$ 个元素
+
+$$
+t_{\text{Python}} \approx n\,(c_{\text{interp}} + c_{\text{op}}),
+\qquad
+t_{\text{NumPy}} \approx c_{\text{call}} + n\,c_{\text{op}} .
+$$ {#eq-cost}
+
+$c_{\text{interp}}$ 比 $c_{\text{op}}$ 大一到两个数量级，所以当 $n$ 足够大、调用开销 $c_{\text{call}}$ 可以摊薄时，向量化能快上百倍。@eq-cost 也解释了一个常见现象：只要把**最内层**的大量运算交给 NumPy，外层保留少量 Python 循环几乎不影响速度。
+
+**广播**（broadcasting）是向量化最常用的工具。它把形状不同的数组按规则对齐：从最后一维开始比较，两个维度相等或其中一个为 1 就兼容，为 1 的那一维被“拉伸”。计算全部原子对位移时，`pos[None, :, :]` 的形状 `(1, N, 3)` 和 `pos[:, None, :]` 的 `(N, 1, 3)` 对齐成 `(N, N, 3)`，一行代码代替了双重循环。
+
+### 4.4 代价：中间数组
+
+广播不是免费的。`(N, N, 3)` 的 float64 数组占 $24N^2$ 字节，最小镜像修正 `d - L * np.round(d / L)` 还会同时产生同样大小的临时数组，实测峰值约为结果本身的 3 倍。拖动 @fig-memory 的滑块，比较“全部原子对”与“截断半径内的邻居表”两种存储方式的内存随 $N$ 的增长。
+
+::: {.column-margin}
+真实的 MD 代码从不构造全部原子对，而是用 cell list 或 Verlet 邻居表只保留截断半径内的对。它们的构造方法和 $O(N)$ 复杂度见 [M01.2](02-data-structures-algorithms.qmd)。
+:::
+
+```{python}
+#| label: fig-memory
+#| fig-cap: "原子对位移的内存占用（交互图）。实线：广播构造全部原子对的峰值内存，约 $3 \\times 24N^2$ 字节；虚线：只存截断半径内邻居对的位移，约 $24 N n_{\\text{nb}}$ 字节，$n_{\\text{nb}} = \\tfrac{4}{3}\\pi r_c^3 \\rho$。数密度 $\\rho = 0.8\\,\\sigma^{-3}$，滑块改变截断半径 $r_c$。"
+import plotly.graph_objects as go
+from IPython.display import HTML
+
+from semiai.plotting import plotly_layout
+
+n = np.logspace(2, 6, 60)
+rho = 0.8
+dense = 3 * 24 * n**2
+rcs = [2.0, 2.5, 3.0, 4.0, 5.0]
+fig = go.Figure()
+fig.add_scatter(x=n, y=dense / 1e9, mode="lines", name="全部原子对（广播，峰值）",
+                line=dict(color=BLUE, width=2.5))
+for k, rc in enumerate(rcs):
+    n_nb = 4 / 3 * np.pi * rc**3 * rho
+    fig.add_scatter(x=n, y=24 * n * n_nb / 1e9, mode="lines", visible=(k == 1),
+                    name=f"邻居表（r_c = {rc} σ，每原子约 {n_nb:.0f} 个邻居）",
+                    line=dict(color=ORANGE, width=2.5, dash="dash"))
+fig.add_hline(y=16, line=dict(color=GRAY, width=1, dash="dot"),
+              annotation_text="16 GB（一台笔记本的内存）", annotation_position="top left")
+steps = [dict(method="update", label=f"{rc}",
+              args=[{"visible": [True] + [j == k for j in range(len(rcs))]}])
+         for k, rc in enumerate(rcs)]
+fig.update_layout(**plotly_layout(
+    xaxis=dict(title="原子数 N", type="log", gridcolor=GRID),
+    yaxis=dict(title="内存 (GB)", type="log", gridcolor=GRID, exponentformat="power"),
+    sliders=[dict(active=1, steps=steps, currentvalue=dict(prefix="截断半径 r_c / σ = "),
+                  pad=dict(t=40))],
+    height=440, margin=dict(l=60, r=20, t=40, b=40),
+))
+HTML(fig.to_html(full_html=False, include_plotlyjs="cdn", include_mathjax=False))
+```
+
+除了几十个原子的极小体系，邻居表都更省内存，而且差距随 $N$ 线性拉大：$r_c = 2.5\,\sigma$ 时，$10^4$ 原子的全部原子对峰值约 7 GB，$10^5$ 原子约 700 GB，而邻居表在 $10^5$ 原子时也只要约 0.1 GB。广播的优势在于写法简单、对几百原子的体系足够快。
+
+## 5. 数学原理
+
+### 5.1 视图、连续性与拷贝
+
+由 @eq-address，数组是 **C 连续**的，当且仅当最后一维的 stride 等于元素大小、且每一维的 stride 等于后一维的 stride 乘以后一维的长度；F 连续则把顺序倒过来。基本索引（整数、切片、`None`、`...`）只改 `base`、`shape`、`strides`，总是返回视图；**花式索引**（整数数组、布尔掩码）选出的元素一般无法用一组等间距的 strides 描述，所以必须拷贝。
+
+::: {.callout-note collapse="true" title="完整推导：切片与转置如何改写 strides"}
+**切片。** 对第 $k$ 轴取 `start_k : stop_k : step_k`，新数组的下标 $i'_k$ 对应原数组的 $i_k = \text{start}_k + i'_k\,\text{step}_k$。代入 @eq-address：
+
+$$
+\text{address} = \underbrace{\text{base} + \sum_k \text{start}_k\,\text{stride}_k}_{\text{新的 base}} + \sum_k i'_k\,\underbrace{(\text{step}_k\,\text{stride}_k)}_{\text{新的 stride}_k} .
+$$
+
+仍是 @eq-address 的形式，所以切片总能表示为视图；`step` 为负时 stride 也为负。
+
+**转置。** 轴的置换 $\pi$ 只是把求和项重新排序：$\sum_k i_{\pi(k)}\,\text{stride}_{\pi(k)}$，新数组的 strides 就是原 strides 按 $\pi$ 重排，同样是视图。
+
+**reshape。** 只有当原数组的内存排列能用新形状的一组 strides 描述时才返回视图。对一个非连续的视图（比如转置后的数组）做 `reshape(-1)`，元素在内存中的顺序与新的 C 顺序不一致，NumPy 只能拷贝。判断一个结果是不是视图，用 `np.shares_memory(a, b)` 或看 `b.base` 是否为原数组。
+
+**花式索引。** `a[[0, 2, 3]]` 选出的行间距是 $2\,\text{stride}_0$ 和 $1\,\text{stride}_0$，不等距，没有一个常数 stride 能描述它，所以一定拷贝。
+:::
+
+### 5.2 广播规则
+
+两个形状从右向左逐维比较，维度 $m$ 与 $n$ 兼容当且仅当 $m = n$ 或 $\min(m, n) = 1$，结果取 $\max(m, n)$；维数不同时在左边补 1。被拉伸的维度在内部用 stride 0 实现，所以 `np.broadcast_to` 本身不占新内存；真正占内存的是运算的**结果**。
+
+### 5.3 einsum：用下标写缩并
+
+`einsum` 用 Einstein 求和约定描述张量运算：输出中不出现的下标被求和。对成对势，维里应力（不含动能项）是
+
+$$
+\sigma_{ab} = -\frac{1}{V}\sum_{i<j} r_{ij,a}\,f_{ij,b}
+= -\frac{1}{2V}\sum_{i,j} r_{ij,a}\,f_{ij,b},
+$$ {#eq-virial}
+
+其中 $\mathbf{r}_{ij}$ 是最小镜像位移，$\mathbf{f}_{ij}$ 是原子 $i$ 施加在 $j$ 上的力。写成代码就是 `-0.5 * np.einsum("ija,ijb->ab", r, f) / V`。与“先广播出 $(N, N, 3, 3)$ 再求和”相比，einsum 在累加过程中直接求和，不物化四维中间数组。
+
+多个张量的缩并顺序会改变计算量。以 $AB\mathbf{v}$ 为例，$A, B \in \mathbb{R}^{m\times m}$：先算 $AB$ 需要 $O(m^3)$，先算 $B\mathbf{v}$ 只需 $O(m^2)$。`np.einsum(..., optimize=True)` 先搜索缩并顺序再计算，`np.einsum_path` 可以打印它选择的路径和理论加速比。
+
+## 6. 算法与实现要点
+
+**先测量。** 性能直觉经常是错的。标准流程是：用 `cProfile`（标准库）找出累计时间最多的函数；用 `line_profiler` 在该函数里找出最慢的行；只改热点；用 `np.allclose` 验证结果不变；再测量。优化之后热点会转移，重复这个循环，直到收益不再值得。
+
+| 工具 | 回答的问题 | 开销 |
+|---|---|---|
+| `timeit.repeat` | 这一小段代码要多久 | 低；取多次重复的最小值 |
+| `cProfile` + `pstats` | 时间花在哪些函数里 | 中；对大量小函数调用有放大 |
+| `line_profiler` | 函数里哪一行慢 | 高；只看比例，不看绝对值 |
+| `tracemalloc` | 峰值分配了多少内存 | 中 |
+
+**避免隐式拷贝。** 常见来源是花式索引、对非连续数组 `reshape` 或调用要求连续输入的函数、表达式里的中间结果。ufunc 的 `out=` 参数把结果写进预分配缓冲区，原地运算 `x *= a` 不分配新数组。它们首先控制的是**峰值内存**；能否省时间取决于平台和数组大小，实例 notebook 中在 Apple M4 上两者耗时相差不到一成，在测量噪声范围内。
+
+**Numba。** `@numba.njit` 在第一次调用时按参数类型把函数编译成机器码，适合天然是循环、难以向量化的算法：邻居表遍历、带分支的截断、蒙特卡洛逐步接受。要点有三：只支持 NumPy 和 Python 的一个子集（不要在里面用 pandas 或任意对象）；第一次调用包含编译时间，计时前先调用一次；换 dtype 调用会重新编译。需要时再看 `parallel=True` 与 `prange` 的多线程。
+
+**复杂度优先于常数。** 向量化和编译都只改变 @eq-cost 里的常数。$O(N^2)$ 的算法编译后仍是 $O(N^2)$，把它降成 $O(N)$ 要靠截断加 cell list。两者结合（用 Numba 写 cell list）才是生产级 MD 代码的做法。
+
+## 7. 实例 Notebook
+
+实例讲解见 [notebooks/05-high-performance-python.ipynb](../notebooks/05-high-performance-python.ipynb)。全篇用同一个带扰动的 fcc Lennard-Jones 体系，所有结论都来自实际运行的输出。第 6、7 节需要可选依赖 Numba 和 line_profiler，先在仓库根目录运行 `uv sync --extra perf`。
+
+| notebook 小节 | 内容 | 对应讲义 |
+|---|---|---|
+| 1. strides | `strides`、`flags`、`np.shares_memory`；视图修改原轨迹的例子 | 4.1、5.1 |
+| 2. 访问顺序 | C / F 顺序下逐行与逐列求和的相对快慢 | 4.2 |
+| 3. 广播 | 原子对最小镜像位移的三种实现；`tracemalloc` 测 $(N, N, 3)$ 的峰值内存 | 4.3、4.4 |
+| 4. einsum | 维里应力的三种写法；`einsum_path` 与 `optimize=True` | 5.3 |
+| 5. 隐式拷贝 | `out=` 与原地运算对峰值内存和耗时的影响；临时数组复用 | 6 |
+| 6. 性能分析 | `cProfile` 找函数，`line_profiler` 找行，修复后验证 | 6 |
+| 7. Numba | 编译双重循环、编译开销、耗时随 $N$ 的 scaling | 6 |
+
+在 VS Code 中打开后选择仓库 `.venv` 的内核，从上到下运行即可；改动后用 `make nb M=01` 重新执行并保存输出。notebook 覆盖 Level 1（NumPy 与纯 Python 的逐步实现）和 Level 2（Numba 编译）。计时的绝对值依赖机器，读的时候只看倍数和 scaling。
+
+## 8. 领域连接
+
+**MD 后处理。** 轨迹分析（RDF、MSD、键角分布、配位数）的瓶颈几乎都是原子对或原子三元组的遍历。小体系上广播最省事；大体系先用邻居表筛选，再对筛出的成对数组做向量化；需要逐原子、带分支的统计时用 Numba。ASE 的 `ase.neighborlist.neighbor_list("ijD", atoms, cutoff)` 返回的就是成对下标 `i`、`j` 和位移 `D` 三个扁平数组，正好适合接着做向量化。
+
+**力与应力的检查。** @eq-virial 的应力张量必须对称，这是中心力的结果，可以作为自写势函数或后处理代码的快速检查。同样的 einsum 写法也适用于从 MLIP 输出的原子力和位移计算应力，与 [M01.2](02-data-structures-algorithms.qmd) 的邻居表结合后是 $O(N)$。
+
+**电子结构数据。** 能带投影、态密度、波函数重叠这类计算是高维数组的缩并，例如对 $(n_k, n_{\text{band}}, n_{\text{orb}})$ 的投影系数按轨道求和得到 PDOS。用 einsum 写清下标、打开 `optimize=True`，比嵌套循环和多次 `reshape` 更不容易出错。
+
+模块 01 的研究锚点 A4（大尺度无序体系的电子结构）以本章为性能基础：几万原子的模型上，任何 $O(N^2)$ 的稠密中间数组都会先撞上内存上限，这正是后续稀疏矩阵方法要解决的问题。
+
+## 9. 常见误区与失败模式
+
+::: {.callout-warning title="视图会把修改传回原数组"}
+`frame = traj[2]; frame -= frame.mean(0)` 改的是 `traj` 本身。基本切片、转置、`reshape`（多数情况）都返回视图。需要独立副本时显式 `.copy()`，拿不准时用 `np.shares_memory` 检查。
+:::
+
+其余常见问题如下。
+
+- 不测量就优化，结果优化了本来不慢的部分。
+- 用一次调用计时，或者把 Numba 的编译时间算进了单次耗时。
+- 为了“全部向量化”构造 $(N, N, 3)$ 乃至 $(N, N, N)$ 的中间数组，在大体系上耗尽内存。
+- 以为广播出来的数组不占内存。`np.broadcast_to` 的结果不占，但任何对它的运算结果都是完整大小的新数组。
+- 在 Python 层沿非连续轴循环（逐原子跨帧），却不先转换布局。
+- 以为 Numba 或向量化能改变复杂度。它们只改变常数。
+- 在 `@njit` 函数里使用不支持的对象（pandas、任意类实例），被迫回退或报错，然后误判 Numba “没用”。
+
+## 10. 小结
+
+- 数组 = 内存块 + `shape`/`strides`/`dtype`，元素地址由 @eq-address 给出；切片和转置是视图，花式索引是拷贝。
+- 沿连续方向访问内存最快；在 Python 层按轴循环时，让循环轴对应连续内存。
+- 向量化快在消除解释器开销（@eq-cost），广播是主要工具，代价是 $O(N^2)$ 的中间数组。
+- `einsum` 用下标描述缩并，不物化中间张量；多张量缩并打开 `optimize=True`。
+- `out=` 和原地运算控制峰值内存；先用 cProfile、line_profiler 测量，再改热点。
+- Numba 把朴素循环编译到接近 C 的速度，有一次性编译开销，不改变算法复杂度。
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::
+
+## 12. 参考资料
+
+- Gorelick, M., Ozsvald, I. *High Performance Python: Practical Performant Programming for Humans*, 2nd ed. O'Reilly, 2020. 配套代码：<https://github.com/mynameisfiber/high_performance_python_2e>（出版社页面 `[待核实]`）
+- Rougier, N. P. *From Python to Numpy*. 2017. <https://www.labri.fr/perso/nrougier/from-python-to-numpy/>
+- VanderPlas, J. *Python Data Science Handbook*. O'Reilly, 2016. <https://jakevdp.github.io/PythonDataScienceHandbook/>
+- NumPy 文档：Copies and views，<https://numpy.org/doc/stable/user/basics.copies.html>；Broadcasting，<https://numpy.org/doc/stable/user/basics.broadcasting.html>
+- Numba 文档：A ~5 minute guide to Numba，<https://numba.readthedocs.io/en/stable/user/5minguide.html>
