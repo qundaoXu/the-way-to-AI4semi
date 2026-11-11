@@ -2,7 +2,52 @@
 
 讲义中的术语以本表为准。英文术语在讲义里首次出现时附上；新术语随所在章节的建设补充进来，并注明归属章节。领域内已经通用英文的名称（如 Ridge、Lasso、Transformer）保留英文。
 
-目前收录的是试点章节 M04.2 和仓库工作流用到的术语。
+目前收录的是 Module 01、试点章节 M04.2 和仓库工作流用到的术语。
+
+## 计算机基础
+
+| 中文 | English | 说明 | 归属章节 |
+|---|---|---|---|
+| 协议 | protocol | 由一组特殊方法定义的行为约定，如序列协议、迭代器协议、上下文管理协议 | M01.1 |
+| 特殊方法 | special (dunder) method | `__len__`、`__getitem__` 等由解释器在类型上查找并调用的方法 | M01.1 |
+| 生成器 | generator | 含 `yield` 的函数返回的惰性迭代器，只能遍历一次 | M01.1 |
+| 惰性计算 | lazy evaluation | 需要时才产生数据，内存与数据总量无关 | M01.1 |
+| 闭包 | closure | 嵌套函数连同其捕获的外层变量 | M01.1 |
+| 后期绑定 | late binding | 闭包在调用时才读取所捕获变量的当前值 | M01.1 |
+| 装饰器 | decorator | 接收函数并返回新函数的可调用对象，`@d` 等价于 `f = d(f)` | M01.1 |
+| 上下文管理器 | context manager | 实现 `__enter__`/`__exit__`，保证资源获取与释放配对 | M01.1 |
+| 往返精度 | round-trip precision | 写出再读回后数值完全相等所需的有效数字（float64 为 17 位） | M01.1 |
+| 摊还复杂度 | amortized complexity | 一串操作的总代价除以操作次数，例如 `list.append` | M01.2 |
+| 最小镜像约定 | minimum image convention | 周期性边界下只取最近的镜像计算位移；要求 $r_c \le L/2$（三斜盒子用面间距） | M01.2 |
+| 格子链表法 | cell list (linked-cell) | 把盒子分成边长不小于 $r_c$ 的格子，只比较相邻格子；固定密度下为 $O(N)$ | M01.2 |
+| Verlet 邻居表 | Verlet list | 用 $r_c$ 加一层 skin 建邻居表，若干步后再重建 | M01.2 |
+| KD 树 | KD-tree | 按坐标递归二分空间的树，用于范围查询和最近邻查询 | M01.2 |
+| 连通分量 | connected component | 图中彼此可达的节点集合，对应原子团簇 | M01.2 |
+| 逾渗阈值 | percolation threshold | 最大团簇开始贯通体系时的占据概率 | M01.2 |
+| 环统计 | ring statistics | 网络中环大小的分布，结果依赖环的定义 | M01.2 |
+| 内容寻址 | content addressing | 对象以内容的哈希命名，Git 的存储模型 | M01.3 |
+| 合并基 | merge base | 两分支最近的公共祖先，三方合并的基准 | M01.3 |
+| 变基 | rebase | 把提交重放到新的父提交上，生成新提交 | M01.3 |
+| 引用日志 | reflog | 本地记录分支指针移动的历史，用于找回提交 | M01.3 |
+| 二分定位 | bisect | 在提交历史上二分查找引入回归的提交 | M01.3 |
+| 锁文件 | lockfile | 记录精确依赖版本与哈希的文件，如 `uv.lock` | M01.3 |
+| 事后调试 | post-mortem debugging | 异常发生后进入崩溃现场的栈帧检查变量 | M01.3 |
+| 缓存行 | cache line | 内存与缓存之间搬运数据的最小单位（常见 64 或 128 B） | M01.4 |
+| 空间局部性 / 时间局部性 | spatial / temporal locality | 访问邻近地址 / 重复访问同一数据的倾向 | M01.4 |
+| 机器精度 | machine epsilon | 1 与下一个可表示浮点数之差，$2^{1-p}$ | M01.4 |
+| 单位舍入误差 | unit roundoff | 单次运算的最大相对误差 $u = \varepsilon/2$ | M01.4 |
+| 灾难性抵消 | catastrophic cancellation | 相近数相减，使前序误差按条件数放大 | M01.4 |
+| 补偿求和 | Kahan (compensated) summation | 记录并补回舍入低位的求和算法 | M01.4 |
+| 成对求和 | pairwise summation | 二分递归求和，误差约随 $\log n$ 增长 | M01.4 |
+| 全局解释器锁 | global interpreter lock (GIL) | CPython 中同一时刻只允许一个线程执行字节码 | M01.4 |
+| 超额订阅 | oversubscription | 线程总数超过核数导致变慢 | M01.4 |
+| 启动方式 | start method (spawn / fork / forkserver) | `multiprocessing` 创建子进程的方式 | M01.4 |
+| 步长 | strides | 沿各轴移动一个元素所跨的字节数 | M01.5 |
+| 视图 | view | 共享原数组内存、只改元数据的数组 | M01.5 |
+| 广播 | broadcasting | 按形状规则自动对齐、拉伸维度的逐元素运算 | M01.5 |
+| 临时数组复用 | temporary elision | NumPy 复用无引用的中间结果数组 | M01.5 |
+| 即时编译 | just-in-time (JIT) compilation | 首次调用时按参数类型编译为机器码（如 Numba） | M01.5 |
+| 性能分析 | profiling | 测量时间或内存花在哪里 | M01.5 |
 
 ## 机器学习
 

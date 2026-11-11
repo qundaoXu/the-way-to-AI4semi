@@ -11,10 +11,16 @@
 
 按 Path B 的顺序：
 
-- [ ] Module 01 计算机基础（M01.1–M01.5）
 - [ ] Module 02 数学、统计与最优化（M02.1 建成后，把 M04.2 讲义第 2 节的前置说明改为链接）
 - [ ] Module 04 其余章节（M04.1、M04.3–M04.8）
 - [ ] Module 03、Module 05
+
+## Module 01 的后续（2026-11-11 建设为 Draft）
+
+- [ ] 学习者过目后，或 VERIFY 模式核查后，把 M01.1–M01.5 的建设状态提升到 `Reviewed`。
+- [ ] 核实标注 `[待核实]` 的资料：Fluent Python 第 2 版出版信息、Matula 1968（M01.1）；CLRS 第 4 版第 3 章标题、Allen & Tildesley 邻居表所在小节、Franzblau 1991（M01.2）；Pro Git 出版社（M01.3）；Goldberg 1991 卷期页码（M01.4）；*High Performance Python* 第 2 版章节标题（M01.5）。
+- [ ] 核实正文中的几处定性说法：PyTorch `torch.load` 默认 `weights_only=True` 的起始版本（M01.1）；ASE `neighbor_list("ijD", ...)` 的返回形式（M01.5，ASE 未安装）；GPU MD 代码的混合精度模式（M01.4）。
+- [ ] notebook 的计时结果来自 Apple M4（macOS），M01.3 的 shell/Git 输出未在 Linux 上验证。
 
 ## 试点章节 M04.2 的后续
 

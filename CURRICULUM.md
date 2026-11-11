@@ -2,7 +2,7 @@
 
 <!-- 本文件由 scripts/sync_index.py 生成，请勿手工编辑。修改 curriculum.yaml 或讲义 frontmatter 后运行 `make sync`。 -->
 
-共 12 个模块、73 章，其中 1 章已建设（建设状态为 Draft 及以上）。只有已建设的章节带讲义链接。
+共 12 个模块、73 章，其中 6 章已建设（建设状态为 Draft 及以上）。只有已建设的章节带讲义链接。
 
 优先级：`P0` 核心必修，`P1` 主线进阶，`P2` 拓展，`P3` 长期专题，`Branch` 分支内容；`FT` 表示已熟悉者可快速浏览的章节（只看精要与实例 notebook）。两种状态的含义见 [学习指南](docs/learning-guide.md)。
 
@@ -12,11 +12,11 @@
 
 | ID | 章节 | 优先级 | 先修 | 锚点 | 建设状态 | 学习状态 |
 |---|---|---|---|---|---|---|
-| M01.1 | Python 进阶<br>Advanced Python | P0 · FT | — | — | Planned | Not Started |
-| M01.2 | 数据结构与算法（科学计算取向）<br>Data Structures and Algorithms for Scientific Computing | P0 | M01.1 | — | Planned | Not Started |
-| M01.3 | 开发工具链<br>Development Toolchain | P0 · FT | — | — | Planned | Not Started |
-| M01.4 | 计算机系统基础<br>Computer Systems Basics | P1 | M01.1 | — | Planned | Not Started |
-| M01.5 | 高性能科学 Python<br>High-Performance Scientific Python | P0 | M01.1 | — | Planned | Not Started |
+| M01.1 | [Python 进阶](modules/01-cs-foundations/notes/01-advanced-python.qmd) · [notebook](modules/01-cs-foundations/notebooks/01-advanced-python.ipynb)<br>Advanced Python | P0 · FT | — | — | Draft | Not Started |
+| M01.2 | [数据结构与算法（科学计算取向）](modules/01-cs-foundations/notes/02-data-structures-algorithms.qmd) · [notebook](modules/01-cs-foundations/notebooks/02-data-structures-algorithms.ipynb)<br>Data Structures and Algorithms for Scientific Computing | P0 | M01.1 | — | Draft | Not Started |
+| M01.3 | [开发工具链](modules/01-cs-foundations/notes/03-dev-toolchain.qmd) · [notebook](modules/01-cs-foundations/notebooks/03-dev-toolchain.ipynb)<br>Development Toolchain | P0 · FT | — | — | Draft | Not Started |
+| M01.4 | [计算机系统基础](modules/01-cs-foundations/notes/04-computer-systems.qmd) · [notebook](modules/01-cs-foundations/notebooks/04-computer-systems.ipynb)<br>Computer Systems Basics | P1 | M01.1 | — | Draft | Not Started |
+| M01.5 | [高性能科学 Python](modules/01-cs-foundations/notes/05-high-performance-python.qmd) · [notebook](modules/01-cs-foundations/notebooks/05-high-performance-python.ipynb)<br>High-Performance Scientific Python | P0 | M01.1 | — | Draft | Not Started |
 
 ## M02 数学、统计与最优化（Mathematics, Statistics and Optimization）
 

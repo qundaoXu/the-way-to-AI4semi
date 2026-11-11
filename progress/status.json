@@ -2,7 +2,7 @@
   "totals": {
     "modules": 12,
     "chapters": 73,
-    "built": 1,
+    "built": 6,
     "learn": {
       "Not Started": 73,
       "Reading": 0,
@@ -11,8 +11,8 @@
       "Mastered": 0
     },
     "build": {
-      "Planned": 72,
-      "Draft": 1,
+      "Planned": 67,
+      "Draft": 6,
       "Reviewed": 0,
       "Verified": 0
     }
@@ -26,7 +26,7 @@
       "priority": "P0",
       "hours": "30–45 h",
       "chapters": 5,
-      "built": 0,
+      "built": 5,
       "learn": {
         "Not Started": 5,
         "Reading": 0,
@@ -236,9 +236,9 @@
       "prereqs": [],
       "anchors": [],
       "note": "modules/01-cs-foundations/notes/01-advanced-python.qmd",
-      "note_exists": false,
-      "notebook": null,
-      "build_status": "Planned",
+      "note_exists": true,
+      "notebook": "modules/01-cs-foundations/notebooks/01-advanced-python.ipynb",
+      "build_status": "Draft",
       "learn_status": "Not Started",
       "evidence_count": 0,
       "next_review": null
@@ -255,9 +255,9 @@
       ],
       "anchors": [],
       "note": "modules/01-cs-foundations/notes/02-data-structures-algorithms.qmd",
-      "note_exists": false,
-      "notebook": null,
-      "build_status": "Planned",
+      "note_exists": true,
+      "notebook": "modules/01-cs-foundations/notebooks/02-data-structures-algorithms.ipynb",
+      "build_status": "Draft",
       "learn_status": "Not Started",
       "evidence_count": 0,
       "next_review": null
@@ -274,9 +274,9 @@
       "prereqs": [],
       "anchors": [],
       "note": "modules/01-cs-foundations/notes/03-dev-toolchain.qmd",
-      "note_exists": false,
-      "notebook": null,
-      "build_status": "Planned",
+      "note_exists": true,
+      "notebook": "modules/01-cs-foundations/notebooks/03-dev-toolchain.ipynb",
+      "build_status": "Draft",
       "learn_status": "Not Started",
       "evidence_count": 0,
       "next_review": null
@@ -293,9 +293,9 @@
       ],
       "anchors": [],
       "note": "modules/01-cs-foundations/notes/04-computer-systems.qmd",
-      "note_exists": false,
-      "notebook": null,
-      "build_status": "Planned",
+      "note_exists": true,
+      "notebook": "modules/01-cs-foundations/notebooks/04-computer-systems.ipynb",
+      "build_status": "Draft",
       "learn_status": "Not Started",
       "evidence_count": 0,
       "next_review": null
@@ -312,9 +312,9 @@
       ],
       "anchors": [],
       "note": "modules/01-cs-foundations/notes/05-high-performance-python.qmd",
-      "note_exists": false,
-      "notebook": null,
-      "build_status": "Planned",
+      "note_exists": true,
+      "notebook": "modules/01-cs-foundations/notebooks/05-high-performance-python.ipynb",
+      "build_status": "Draft",
       "learn_status": "Not Started",
       "evidence_count": 0,
       "next_review": null

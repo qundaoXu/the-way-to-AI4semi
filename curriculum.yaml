@@ -45,7 +45,7 @@ modules:
         prereqs: []
         anchors: []
         note: notes/01-advanced-python.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 数据模型与 Pythonic 写法；迭代器、生成器与惰性计算；装饰器与闭包；上下文管理器；dataclass 与类型注解；包、模块与导入机制；异常设计；科学数据序列化（JSON、HDF5、extxyz）及 pickle 的安全与兼容性问题。
       - id: M01.2
         title: Data Structures and Algorithms for Scientific Computing
@@ -55,7 +55,7 @@ modules:
         prereqs: [M01.1]
         anchors: []
         note: notes/02-data-structures-algorithms.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 时间与空间复杂度；数组、哈希表、堆、树、图；排序与搜索；递归、分治、动态规划与贪心基础。领域例题：周期性边界条件下的最小镜像约定；cell list 与 KD-tree 邻居搜索；用连通分量与最短路计算键网络的团簇与环统计。面试刷题部分为 P2。
       - id: M01.3
         title: Development Toolchain
@@ -65,7 +65,7 @@ modules:
         prereqs: []
         anchors: []
         note: notes/03-dev-toolchain.qmd
-        build_status: Planned
+        build_status: Draft
         scope: Linux 与 Shell 脚本；Git 进阶（分支策略、rebase、bisect、冲突处理）；环境与依赖管理（uv、conda）；调试（pdb、IDE 调试器）；日志；pytest；ruff；pre-commit。FT 仅适用于部分内容。
       - id: M01.4
         title: Computer Systems Basics
@@ -75,7 +75,7 @@ modules:
         prereqs: [M01.1]
         anchors: []
         note: notes/04-computer-systems.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 存储层次与缓存局部性；进程、线程与 GIL；并发与 multiprocessing；I/O 瓶颈；IEEE 754 浮点表示与舍入误差；网络与 HTTP/API 基础（P2）。
       - id: M01.5
         title: High-Performance Scientific Python
@@ -85,7 +85,7 @@ modules:
         prereqs: [M01.1]
         anchors: []
         note: notes/05-high-performance-python.qmd
-        build_status: Planned
+        build_status: Draft
         scope: NumPy 内存布局与 strides；广播与向量化；einsum；避免隐式拷贝；cProfile、line_profiler 性能分析；Numba 入门。
 
   # ---------------------------------------------------------------------------

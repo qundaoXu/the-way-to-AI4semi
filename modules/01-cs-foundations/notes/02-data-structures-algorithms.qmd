@@ -43,7 +43,7 @@ use_style()
 
 ## 2. 前置知识
 
-需要 M01.1 Python 进阶中的数据模型、迭代器和 `dict`/`set` 的用法。NumPy 的向量化与内存布局在 M01.5 高性能科学 Python 中系统讲解，本章只在需要时使用。
+需要 [M01.1 Python 进阶](01-advanced-python.qmd)中的数据模型、迭代器和 `dict`/`set` 的用法。NumPy 的向量化与内存布局在 [M01.5 高性能科学 Python](05-high-performance-python.qmd) 中系统讲解，本章只在需要时使用。
 
 符号：$N$ 是粒子数，$L$ 是立方盒子的边长，$\rho = N/L^3$ 是数密度，$r_c$ 是截断半径。复杂度记号 $O(\cdot)$ 表示渐近上界，只关心规模增大时的增长速度，不关心常数。
 
@@ -198,7 +198,7 @@ $$
 \frac{\tfrac{4}{3}\pi r_c^3}{27\,r_c^3} = \frac{4\pi}{81} \approx 0.155 .
 $$ {#eq-efficiency}
 
-也就是说约 85% 的距离计算是白做的。这是 cell list 的常数因子，Verlet list 和更细的格子划分都是为了压低它（第 6 节）。
+由 @eq-efficiency，约 85% 的距离计算是白做的。这是 cell list 的常数因子，Verlet list 和更细的格子划分都是为了压低它（第 6 节）。
 
 ### 4.4 原子构型就是一张图
 

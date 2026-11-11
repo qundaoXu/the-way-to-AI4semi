@@ -2,17 +2,17 @@
 
 <!-- 本文件由 scripts/sync_index.py 生成，请勿手工编辑。修改 curriculum.yaml 或讲义 frontmatter 后运行 `make sync`。 -->
 
-共 73 章，已建设 1 章。学习状态：Not Started 73、Reading 0、Practicing 0、Reviewed 0、Mastered 0。
+共 73 章，已建设 6 章。学习状态：Not Started 73、Reading 0、Practicing 0、Reviewed 0、Mastered 0。
 
 勾选表示该章已达到 `Mastered`。学习状态记录在各讲义的 frontmatter 中，用 `make status ID=M04.2 S=Practicing` 修改。
 
 ## M01 计算机基础
 
-- [ ] **M01.1** Python 进阶 `P0` `FT` · 建设：Planned · 学习：Not Started
-- [ ] **M01.2** 数据结构与算法（科学计算取向） `P0` · 建设：Planned · 学习：Not Started
-- [ ] **M01.3** 开发工具链 `P0` `FT` · 建设：Planned · 学习：Not Started
-- [ ] **M01.4** 计算机系统基础 `P1` · 建设：Planned · 学习：Not Started
-- [ ] **M01.5** 高性能科学 Python `P0` · 建设：Planned · 学习：Not Started
+- [ ] **M01.1** [Python 进阶](../modules/01-cs-foundations/notes/01-advanced-python.qmd) · [notebook](../modules/01-cs-foundations/notebooks/01-advanced-python.ipynb) `P0` `FT` · 建设：Draft · 学习：Not Started
+- [ ] **M01.2** [数据结构与算法（科学计算取向）](../modules/01-cs-foundations/notes/02-data-structures-algorithms.qmd) · [notebook](../modules/01-cs-foundations/notebooks/02-data-structures-algorithms.ipynb) `P0` · 建设：Draft · 学习：Not Started
+- [ ] **M01.3** [开发工具链](../modules/01-cs-foundations/notes/03-dev-toolchain.qmd) · [notebook](../modules/01-cs-foundations/notebooks/03-dev-toolchain.ipynb) `P0` `FT` · 建设：Draft · 学习：Not Started
+- [ ] **M01.4** [计算机系统基础](../modules/01-cs-foundations/notes/04-computer-systems.qmd) · [notebook](../modules/01-cs-foundations/notebooks/04-computer-systems.ipynb) `P1` · 建设：Draft · 学习：Not Started
+- [ ] **M01.5** [高性能科学 Python](../modules/01-cs-foundations/notes/05-high-performance-python.qmd) · [notebook](../modules/01-cs-foundations/notebooks/05-high-performance-python.ipynb) `P0` · 建设：Draft · 学习：Not Started
 
 ## M02 数学、统计与最优化
 

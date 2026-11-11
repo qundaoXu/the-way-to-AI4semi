@@ -13,11 +13,11 @@
 
 | ID | 章节 | 优先级 | 先修 | 锚点 | 建设状态 | 学习状态 |
 |---|---|---|---|---|---|---|
-| M01.1 | Python 进阶<br>Advanced Python | P0 · FT | — | — | Planned | Not Started |
-| M01.2 | 数据结构与算法（科学计算取向）<br>Data Structures and Algorithms for Scientific Computing | P0 | M01.1 | — | Planned | Not Started |
-| M01.3 | 开发工具链<br>Development Toolchain | P0 · FT | — | — | Planned | Not Started |
-| M01.4 | 计算机系统基础<br>Computer Systems Basics | P1 | M01.1 | — | Planned | Not Started |
-| M01.5 | 高性能科学 Python<br>High-Performance Scientific Python | P0 | M01.1 | — | Planned | Not Started |
+| M01.1 | [Python 进阶](notes/01-advanced-python.qmd) · [notebook](notebooks/01-advanced-python.ipynb)<br>Advanced Python | P0 · FT | — | — | Draft | Not Started |
+| M01.2 | [数据结构与算法（科学计算取向）](notes/02-data-structures-algorithms.qmd) · [notebook](notebooks/02-data-structures-algorithms.ipynb)<br>Data Structures and Algorithms for Scientific Computing | P0 | M01.1 | — | Draft | Not Started |
+| M01.3 | [开发工具链](notes/03-dev-toolchain.qmd) · [notebook](notebooks/03-dev-toolchain.ipynb)<br>Development Toolchain | P0 · FT | — | — | Draft | Not Started |
+| M01.4 | [计算机系统基础](notes/04-computer-systems.qmd) · [notebook](notebooks/04-computer-systems.ipynb)<br>Computer Systems Basics | P1 | M01.1 | — | Draft | Not Started |
+| M01.5 | [高性能科学 Python](notes/05-high-performance-python.qmd) · [notebook](notebooks/05-high-performance-python.ipynb)<br>High-Performance Scientific Python | P0 | M01.1 | — | Draft | Not Started |
 
 **各章范围**
 
