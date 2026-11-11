@@ -11,8 +11,10 @@ __pycache__/
 build/
 dist/
 
-# ---- Notebook：仓库以 Jupytext 的 .py 为准 ----
+# ---- Notebook：只提交各章的实例讲解 notebook（带执行输出），其余忽略 ----
 *.ipynb
+!modules/*/notebooks/*.ipynb
+modules/*/notebooks/scratch/
 
 # ---- Quarto：渲染输出不提交，_freeze/ 需要提交 ----
 _site/

@@ -20,6 +20,8 @@ project:
     - modules/11-hpc-gpu-computing/README.md
     - modules/12-advanced-topics/README.md
     - "modules/*/notes/*.qmd"
+    # 各章的实例讲解 notebook：带执行输出提交，渲染时不重新执行，直接使用保存的输出
+    - "modules/*/notebooks/*.ipynb"
     - modules/04-classical-machine-learning/exercises/README.md
     - "modules/*/concept-map.qmd"
     - "learning-paths/*.md"

@@ -12,19 +12,23 @@ learn_status: Not Started    # 学习者所有：Not Started / Reading / Practic
 evidence: []                 # 学习者所有：掌握证据（测试提交、复测记录等）
 next_review:                 # 学习者所有：下次复测日期
 last_reviewed: YYYY-MM-DD
+code-fold: true
+code-summary: "显示绘图代码"
 ---
 
 <!--
 使用说明（建设时删除本注释）
 - 页面标题来自 frontmatter 的 title（中文）和 subtitle（英文），正文不再写一级标题。
 - id、module、priority、tags、prereqs、anchors 与 curriculum.yaml 保持一致。
-- 必需小节：学习目标、推荐阅读、代码导航、自测题、我的笔记。其余小节按需保留。
+- 必需小节：学习目标、推荐阅读、实例 Notebook、我的笔记。其余小节按需保留。不设自测题。
 - 正文 2000–5000 字，超出则拆分。版式遵循 PROJECT_BLUEPRINT.md 第 6.6 节：
   先直觉后公式；核心概念配代码生成的图（#| label: fig-xxx，正文用 @fig-xxx 引用）；
   关键公式编号（{#eq-xxx}，正文用 @eq-xxx 引用）；完整推导放进折叠 callout；
   旁注放 .column-margin；交互图 1–2 个；callout（不含学习者批注）不超过约 5 个。
-- 代码单元只用核心依赖，在 CPU 上数秒内完成；更长的代码放 examples/。
-- 代码单元里不能出现练习的答案。
+- 讲义的代码单元只用于生成图和交互图，默认折叠（frontmatter 的 code-fold: true），
+  只用核心依赖，在 CPU 上数秒内完成。逐步讲解的代码放进同名实例 notebook
+  （../notebooks/<本文件同名>.ipynb，模板见 templates/notebook-template.py）。
+- 绘图统一用 semiai.plotting：from semiai.plotting import BLUE, ORANGE, use_style。
 -->
 
 ## 0. 定位
@@ -59,9 +63,10 @@ last_reviewed: YYYY-MM-DD
 
 伪代码、复杂度、数值稳定性注意事项。
 
-## 7. 代码导航
+## 7. 实例 Notebook
 
-examples、exercises、tests 的相对路径与运行命令；说明本章选了哪些实现层次（Level 1–3）及理由。
+链接到 [notebooks/<本文件同名>.ipynb](../notebooks/xx.ipynb)，用一张表列出 notebook 各节讲解的内容
+及其对应的讲义小节；说明运行方式（VS Code 打开逐单元运行；`make nb M=NN` 重新执行并保存输出）。
 
 ## 8. 领域连接
 
@@ -69,22 +74,14 @@ examples、exercises、tests 的相对路径与运行命令；说明本章选了
 
 ## 9. 常见误区与失败模式
 
-## 10. 自测题
+## 10. 小结
 
-概念题、推导题、编程题。
-
-::: {.callout-tip collapse="true" title="答案与提示"}
-答案默认折叠。
-:::
-
-## 11. 小结
-
-## 12. 我的笔记
+## 11. 我的笔记
 
 ::: {.callout-note .anno-note title="本章总结"}
 （由学习者本人填写。）
 :::
 
-## 13. 参考资料
+## 12. 参考资料
 
 只列真实且已核实的资料：作者、标题、年份、链接；无法确认的标注 `[待核实]`。

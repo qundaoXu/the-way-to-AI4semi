@@ -8,8 +8,9 @@
 - 先修关系引用了不存在的章节，或存在环；
 - 引用了未定义的研究锚点；
 - ``Draft`` 及以上章节缺少讲义，或讲义 frontmatter 的 ``id`` 与 curriculum.yaml 不一致；
-- ``Verified`` 章节在模块 ``tests/`` 下没有提到该章 ID 的测试文件；
-- Markdown / Quarto 文件中的仓库内相对链接指向不存在的文件。
+- ``Draft`` 及以上章节缺少实例 notebook（``notebooks/<讲义同名>.ipynb``），notebook 中
+  没有出现该章 ID，存在未执行的代码单元，或输出中有报错；
+- Markdown / Quarto 文件及 notebook 的 Markdown 单元中，仓库内相对链接指向不存在的文件。
 
 警告（不影响返回值）：
 
@@ -20,6 +21,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 import sys
@@ -131,20 +133,45 @@ def check_structure(modules: list[Module], anchors: set[str]) -> tuple[list[str]
                         )
                 if chapter.learn_status in ("Reviewed", "Mastered") and not chapter.evidence:
                     warnings.append(f"{cid}: 学习状态为 {chapter.learn_status}，但 evidence 为空")
-            if chapter.build_status == "Verified" and not _has_tests(module, cid):
-                errors.append(
-                    f"{cid}: 建设状态为 Verified，但 {module.dir}/tests/ 下没有提到该章的测试"
-                )
+            if built:
+                errors.extend(_check_notebook(cid, chapter.notebook))
 
     errors.extend(_find_cycles(modules))
     return errors, warnings
 
 
-def _has_tests(module: Module, chapter_id: str) -> bool:
-    tests_dir = ROOT / module.dir / "tests"
-    if not tests_dir.is_dir():
-        return False
-    return any(chapter_id in path.read_text("utf-8") for path in tests_dir.glob("test_*.py"))
+def _load_notebook(path: Path) -> dict | None:
+    try:
+        data = json.loads(path.read_text("utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) and isinstance(data.get("cells"), list) else None
+
+
+def _cell_source(cell: dict) -> str:
+    source = cell.get("source", "")
+    return "".join(source) if isinstance(source, list) else str(source)
+
+
+def _check_notebook(chapter_id: str, rel_path: str) -> list[str]:
+    """实例 notebook 必须存在、提到章节 ID、全部代码单元已执行且没有报错输出。"""
+    path = ROOT / rel_path
+    if not path.is_file():
+        return [f"{chapter_id}: 已建设，但缺少实例 notebook {rel_path}"]
+    nb = _load_notebook(path)
+    if nb is None:
+        return [f"{chapter_id}: {rel_path} 不是有效的 notebook"]
+    errors: list[str] = []
+    if not any(chapter_id in _cell_source(c) for c in nb["cells"]):
+        errors.append(f"{chapter_id}: {rel_path} 中没有出现章节 ID")
+    for number, cell in enumerate(nb["cells"], start=1):
+        if cell.get("cell_type") != "code" or not _cell_source(cell).strip():
+            continue
+        if cell.get("execution_count") is None:
+            errors.append(f"{chapter_id}: {rel_path} 第 {number} 个单元未执行（运行 make nb）")
+        if any(out.get("output_type") == "error" for out in cell.get("outputs", [])):
+            errors.append(f"{chapter_id}: {rel_path} 第 {number} 个单元的输出中有报错")
+    return errors
 
 
 def _find_cycles(modules: list[Module]) -> list[str]:
@@ -191,36 +218,52 @@ def _tracked_documents() -> list[Path]:
     return sorted(p for p in paths if p.is_file())
 
 
+def _notebooks() -> list[Path]:
+    return sorted(p for p in ROOT.glob("modules/*/notebooks/*.ipynb") if p.is_file())
+
+
+def _broken_links(path: Path, text: str, label: str) -> list[str]:
+    errors: list[str] = []
+    fence: str | None = None
+    for number, line in enumerate(text.splitlines(), start=1):
+        fence_match = _FENCE_RE.match(line)
+        if fence_match:
+            marker = fence_match.group(1)
+            if fence is None:
+                fence = marker[0] * 3
+            elif marker.startswith(fence):
+                fence = None
+            continue
+        if fence is not None:
+            continue
+        stripped = _INLINE_CODE_RE.sub("", line)
+        for target in _LINK_RE.findall(stripped) + _IMAGE_RE.findall(stripped):
+            if _EXTERNAL_RE.match(target) or target.startswith("#"):
+                continue
+            clean = target.split("#", 1)[0].split("?", 1)[0]
+            if not clean:
+                continue
+            resolved = ROOT / clean.lstrip("/") if clean.startswith("/") else path.parent / clean
+            if not resolved.exists():
+                errors.append(f"{label}:{number}: 链接目标不存在 {target}")
+    return errors
+
+
 def check_links() -> list[str]:
     errors: list[str] = []
     for path in _tracked_documents():
         rel = path.relative_to(ROOT).as_posix()
         if rel.startswith(_LINK_SKIP):
             continue
-        fence: str | None = None
-        for number, line in enumerate(path.read_text("utf-8").splitlines(), start=1):
-            fence_match = _FENCE_RE.match(line)
-            if fence_match:
-                marker = fence_match.group(1)
-                if fence is None:
-                    fence = marker[0] * 3
-                elif marker.startswith(fence):
-                    fence = None
-                continue
-            if fence is not None:
-                continue
-            stripped = _INLINE_CODE_RE.sub("", line)
-            for target in _LINK_RE.findall(stripped) + _IMAGE_RE.findall(stripped):
-                if _EXTERNAL_RE.match(target) or target.startswith("#"):
-                    continue
-                clean = target.split("#", 1)[0].split("?", 1)[0]
-                if not clean:
-                    continue
-                resolved = (
-                    ROOT / clean.lstrip("/") if clean.startswith("/") else path.parent / clean
-                )
-                if not resolved.exists():
-                    errors.append(f"{rel}:{number}: 链接目标不存在 {target}")
+        errors += _broken_links(path, path.read_text("utf-8"), rel)
+    for path in _notebooks():
+        rel = path.relative_to(ROOT).as_posix()
+        nb = _load_notebook(path)
+        if nb is None:
+            continue
+        for number, cell in enumerate(nb["cells"], start=1):
+            if cell.get("cell_type") == "markdown":
+                errors += _broken_links(path, _cell_source(cell), f"{rel} 单元 {number} 行")
     return errors
 
 

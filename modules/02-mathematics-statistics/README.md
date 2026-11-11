@@ -56,6 +56,6 @@
 
 各锚点的知识链条与推荐学习顺序见 [研究锚点说明](../../docs/research-anchors.md)。
 
-## 诊断
+## 实例 notebook
 
-本模块在开始前先做诊断测评，每章得到 `Skip`、`Light` 或 `Full` 的结论。诊断题在 Phase 1b 以 QUIZ 模式生成，作答结果保存到 `progress/diagnostics/`。
+每章配一个带运行结果的实例讲解 notebook，放在 `notebooks/` 目录，与讲义同名；章节表中“notebook”链接指向它。在 VS Code 中打开即可逐单元运行，改动后用 `make nb M=02` 重新执行并保存输出。

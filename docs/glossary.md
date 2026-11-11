@@ -54,7 +54,8 @@
 | 学习状态 | `learn_status` | 学习者对某章的掌握程度，记录在讲义 frontmatter |
 | 建设状态 | `build_status` | 某章讲义与代码的质量状态，记录在 `curriculum.yaml` |
 | 研究锚点 | research anchor | 来自真实研究场景、用来说明“为什么学这一章”的问题（A1–A8） |
-| 快速通过 | fast-track (FT) | 诊断通过即可跳过正文、只做练习验证的章节 |
-| 即时建设 | just-in-time (JIT) build | 内容建设最多领先学习进度两章 |
+| 快速通过 | fast-track (FT) | 已熟悉者可只浏览精要、运行实例 notebook 的章节 |
+| 按模块建设 | module-wise build | 一次建设一个模块的全部章节，建完交学习者过目（取代原先“最多领先两章”的即时建设） |
+| 实例 notebook | worked-example notebook | 每章一个、带执行输出提交的 `.ipynb`，逐步讲解代码 |
 | 概念归属 | concept ownership | 同一概念只在一个章节系统讲解，其他章节用链接引用 |
 | 批注 | annotation | 写在讲义源文件中的 `.anno-*` callout |

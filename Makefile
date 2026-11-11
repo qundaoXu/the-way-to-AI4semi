@@ -4,7 +4,7 @@ RUN := $(UV) run
 PY  := $(RUN) python
 
 .DEFAULT_GOAL := help
-.PHONY: help setup check ex sync test-src preview site status
+.PHONY: help setup check ex nb sync test-src preview site status
 
 help:
 	@echo "make setup                         创建环境，安装 semiai 与 dev 依赖"
@@ -31,6 +31,13 @@ ex:
 	@test -n "$(M)" || { echo "用法：make ex M=04"; exit 2; }
 	-LEARN_TARGET=exercises $(RUN) pytest modules/$(M)-*/tests --results-json progress/test-results.json
 	@$(PY) scripts/sync_index.py --touch-dashboard
+
+# 实例讲解 notebook 带输出提交；改动 notebook 代码后用它重新执行并保存输出。
+nb:
+	@test -n "$(M)" || { echo "用法：make nb M=01"; exit 2; }
+	$(RUN) jupyter nbconvert --to notebook --execute --inplace \
+		--ExecutePreprocessor.timeout=600 --ExecutePreprocessor.kernel_name=python3 \
+		modules/$(M)-*/notebooks/*.ipynb
 
 sync:
 	$(PY) scripts/sync_index.py --touch-dashboard

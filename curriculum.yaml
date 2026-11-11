@@ -7,10 +7,11 @@
 #
 # 字段说明
 #   priority      P0 | P1 | P2 | P3 | Branch
-#   tags          [FT] 表示 Fast-track 候选：诊断通过即可跳过正文，只做练习验证
-#   prereqs       章节级先修。蓝图明文规定的先修见各章注释，其余为建设时的建议，诊断后可调整
+#   tags          [FT] 表示 Fast-track 候选：已熟悉者可只浏览精要、运行实例 notebook
+#   prereqs       章节级先修。蓝图明文规定的先修见各章注释，其余为建设时的建议，可按学习情况调整
 #   anchors       研究锚点，取自蓝图第 3.2 节的对应表
-#   note          讲义路径，相对于模块目录；文件在该章建设时才创建
+#   note          讲义路径，相对于模块目录；文件在该章建设时才创建。
+#                 实例 notebook 与讲义同名，位于模块的 notebooks/ 目录（如 notebooks/02-linear-models.ipynb）
 #   build_status  Planned | Draft | Reviewed | Verified
 #   scope         本章覆盖的内容范围，取自蓝图第 3.4 节
 

@@ -14,7 +14,7 @@
 | ID | 章节 | 优先级 | 先修 | 锚点 | 建设状态 | 学习状态 |
 |---|---|---|---|---|---|---|
 | M04.1 | 统计学习基础<br>Statistical Learning Foundations | P0 | M02.1, M02.3 | — | Planned | Not Started |
-| M04.2 | [线性模型](notes/02-linear-models.qmd)<br>Linear Models | P0 | M02.1, M02.2, M02.4 | — | Draft | Not Started |
+| M04.2 | [线性模型](notes/02-linear-models.qmd) · [notebook](notebooks/02-linear-models.ipynb)<br>Linear Models | P0 | M02.1, M02.2, M02.4 | — | Draft | Not Started |
 | M04.3 | 核方法与高斯过程<br>Kernel Methods and Gaussian Processes | P0 | M04.2, M02.3 | — | Planned | Not Started |
 | M04.4 | 树模型与集成学习<br>Trees and Ensemble Learning | P0 | M04.1 | — | Planned | Not Started |
 | M04.5 | 无监督学习<br>Unsupervised Learning | P0 | M02.1, M02.3 | — | Planned | Not Started |
@@ -59,6 +59,6 @@ make ex M=04        # 用自己的实现运行本模块的测试
 
 各锚点的知识链条与推荐学习顺序见 [研究锚点说明](../../docs/research-anchors.md)。
 
-## 诊断
+## 实例 notebook
 
-本模块在开始前先做诊断测评，每章得到 `Skip`、`Light` 或 `Full` 的结论。诊断题在 Phase 1b 以 QUIZ 模式生成，作答结果保存到 `progress/diagnostics/`。
+每章配一个带运行结果的实例讲解 notebook，放在 `notebooks/` 目录，与讲义同名；章节表中“notebook”链接指向它。在 VS Code 中打开即可逐单元运行，改动后用 `make nb M=04` 重新执行并保存输出。

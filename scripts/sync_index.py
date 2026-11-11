@@ -98,10 +98,17 @@ class Chapter:
     build_status: str
     scope: str
     note_exists: bool = False
+    notebook_exists: bool = False
     learn_status: str = "Not Started"
     evidence: list[str] = field(default_factory=list)
     next_review: str | None = None
     frontmatter: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def notebook(self) -> str:
+        """实例讲解 notebook 的路径：与讲义同名，位于模块的 notebooks/ 目录。"""
+        note = Path(self.note)
+        return (note.parent.parent / "notebooks" / f"{note.stem}.ipynb").as_posix()
 
 
 @dataclass
@@ -169,6 +176,7 @@ def load_modules() -> list[Module]:
                 build_status=chapter_raw.get("build_status", "Planned"),
                 scope=str(chapter_raw.get("scope", "")).strip(),
             )
+            chapter.notebook_exists = (ROOT / chapter.notebook).is_file()
             note_path = ROOT / note
             if note_path.is_file():
                 chapter.note_exists = True
@@ -298,9 +306,12 @@ def _dash(items: list[str]) -> str:
 
 
 def _chapter_link(chapter: Chapter, start: str) -> str:
-    if chapter.note_exists:
-        return f"[{chapter.title_zh}]({_rel(chapter.note, start)})"
-    return chapter.title_zh
+    if not chapter.note_exists:
+        return chapter.title_zh
+    link = f"[{chapter.title_zh}]({_rel(chapter.note, start)})"
+    if chapter.notebook_exists:
+        link += f" · [notebook]({_rel(chapter.notebook, start)})"
+    return link
 
 
 def _chapter_table(module: Module, start: str) -> list[str]:
@@ -329,7 +340,7 @@ def render_curriculum(modules: list[Module]) -> str:
         "只有已建设的章节带讲义链接。",
         "",
         "优先级：`P0` 核心必修，`P1` 主线进阶，`P2` 拓展，`P3` 长期专题，"
-        "`Branch` 分支内容；`FT` 表示诊断通过即可跳过正文、只做练习验证。"
+        "`Branch` 分支内容；`FT` 表示已熟悉者可快速浏览的章节（只看精要与实例 notebook）。"
         "两种状态的含义见 [学习指南](docs/learning-guide.md)。",
         "",
     ]
@@ -457,6 +468,7 @@ def render_status(modules: list[Module], annotations: list[Annotation]) -> str:
                 "anchors": c.anchors,
                 "note": c.note,
                 "note_exists": c.note_exists,
+                "notebook": c.notebook if c.notebook_exists else None,
                 "build_status": c.build_status,
                 "learn_status": c.learn_status,
                 "evidence_count": len(c.evidence),

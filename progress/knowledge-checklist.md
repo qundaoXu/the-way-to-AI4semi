@@ -37,7 +37,7 @@
 ## M04 传统机器学习
 
 - [ ] **M04.1** 统计学习基础 `P0` · 建设：Planned · 学习：Not Started
-- [ ] **M04.2** [线性模型](../modules/04-classical-machine-learning/notes/02-linear-models.qmd) `P0` · 建设：Draft · 学习：Not Started
+- [ ] **M04.2** [线性模型](../modules/04-classical-machine-learning/notes/02-linear-models.qmd) · [notebook](../modules/04-classical-machine-learning/notebooks/02-linear-models.ipynb) `P0` · 建设：Draft · 学习：Not Started
 - [ ] **M04.3** 核方法与高斯过程 `P0` · 建设：Planned · 学习：Not Started
 - [ ] **M04.4** 树模型与集成学习 `P0` · 建设：Planned · 学习：Not Started
 - [ ] **M04.5** 无监督学习 `P0` · 建设：Planned · 学习：Not Started

@@ -4,7 +4,7 @@
 
 共 12 个模块、73 章，其中 1 章已建设（建设状态为 Draft 及以上）。只有已建设的章节带讲义链接。
 
-优先级：`P0` 核心必修，`P1` 主线进阶，`P2` 拓展，`P3` 长期专题，`Branch` 分支内容；`FT` 表示诊断通过即可跳过正文、只做练习验证。两种状态的含义见 [学习指南](docs/learning-guide.md)。
+优先级：`P0` 核心必修，`P1` 主线进阶，`P2` 拓展，`P3` 长期专题，`Branch` 分支内容；`FT` 表示已熟悉者可快速浏览的章节（只看精要与实例 notebook）。两种状态的含义见 [学习指南](docs/learning-guide.md)。
 
 ## M01 计算机基础（Computer Science Foundations）
 
@@ -53,7 +53,7 @@
 | ID | 章节 | 优先级 | 先修 | 锚点 | 建设状态 | 学习状态 |
 |---|---|---|---|---|---|---|
 | M04.1 | 统计学习基础<br>Statistical Learning Foundations | P0 | M02.1, M02.3 | — | Planned | Not Started |
-| M04.2 | [线性模型](modules/04-classical-machine-learning/notes/02-linear-models.qmd)<br>Linear Models | P0 | M02.1, M02.2, M02.4 | — | Draft | Not Started |
+| M04.2 | [线性模型](modules/04-classical-machine-learning/notes/02-linear-models.qmd) · [notebook](modules/04-classical-machine-learning/notebooks/02-linear-models.ipynb)<br>Linear Models | P0 | M02.1, M02.2, M02.4 | — | Draft | Not Started |
 | M04.3 | 核方法与高斯过程<br>Kernel Methods and Gaussian Processes | P0 | M04.2, M02.3 | — | Planned | Not Started |
 | M04.4 | 树模型与集成学习<br>Trees and Ensemble Learning | P0 | M04.1 | — | Planned | Not Started |
 | M04.5 | 无监督学习<br>Unsupervised Learning | P0 | M02.1, M02.3 | — | Planned | Not Started |

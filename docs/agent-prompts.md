@@ -1,6 +1,6 @@
 # Agent 指令库
 
-可以直接复制给编码 Agent（Claude Code 等）的指令，与 `PROJECT_BLUEPRINT.md` 第 15 节同步。Agent 的五种工作模式和约束见仓库根目录的 `AGENTS.md`。
+可以直接复制给编码 Agent（Claude Code 等）的指令，与 `PROJECT_BLUEPRINT.md` 第 15 节同步。Agent 的四种工作模式和约束见仓库根目录的 `AGENTS.md`。
 
 使用时把章节 ID、文件路径和尖括号里的内容换成实际值。
 
@@ -14,25 +14,25 @@
 >
 > 不要生成试点章节以外的课程正文，不要创建空占位文件，不要编造学习记录或参考资料，不要修改我的其他科研仓库。
 >
-> 完成后运行 `make check`，并汇报：已创建的文件、实际执行的命令与结果、未能验证的部分、对 Phase 1b 的建议。
+> 完成后运行 `make check`，并汇报：已创建的文件、实际执行的命令与结果、未能验证的部分、下一步建议。
 
-## 诊断与路线（Phase 1b）
-
-**生成诊断题（QUIZ）：**
-
-> QUIZ 模式：为 Module 02 生成诊断题，每章 2–4 道，答案折叠。我作答后请评分，并给出每章 Skip / Light / Full 的建议。
-
-**生成个人化路线：**
-
-> 根据 `progress/diagnostics/` 中 Module 01–05 的诊断结论，生成个人化的 `ROADMAP.md`：按每周 <9> 小时排期，Skip 的章节只安排练习验证，写明每个阶段的检查点。
+诊断测评与 QUIZ 模式（原 Phase 1b）已按学习者要求暂停，相关指令已移除。
 
 ## 日常指令
 
-**建设一个章节（BUILD）：**
+**建设一个模块（BUILD）：**
 
-> BUILD 模式：建设 M02.1。先检查前置章节和概念归属表，列出计划后再动手。完成后按第 12.4 节逐条核对完成定义并汇报测试结果。
+> BUILD 模式：建设 Module 02 的全部章节，每章交付讲义和带输出的实例 notebook。先检查前置章节和概念归属表，列出计划后再动手；逐章按第 12.4 节核对完成定义，模块完成后汇报渲染与检查结果。
 
-**评审我的练习（TUTOR）：**
+**补建或重做一个章节（BUILD）：**
+
+> BUILD 模式：建设 M02.1。按第 12.4 节逐条核对完成定义并汇报。
+
+**讲解 notebook（TUTOR）：**
+
+> TUTOR 模式：`modules/01-cs-foundations/notebooks/05-high-performance-python.ipynb` 第 3 节的计时结果我看不懂，为什么转置后求和变慢？请结合 strides 解释，不要改动 notebook。
+
+**评审 M04.2 的练习（TUTOR）：**
 
 > TUTOR 模式：我完成了 `modules/04-classical-machine-learning/exercises/linear_regression.py`，`make ex M=04` 有两个测试失败。请先只给方向提示，不要修改我的文件，也不要给出完整代码。
 
@@ -40,13 +40,9 @@
 
 > TUTOR 模式：处理 `progress/open-questions.md` 中 M04 的全部未解决疑问。在每个疑问下方追加 `.anno-tutor` 回答，先给思路，涉及推导的给出关键步骤。不要改动我的原文，也不要替我把疑问标记为已解决。
 
-**复测（QUIZ）：**
-
-> QUIZ 模式：对 M04.2 做一次不看资料的复测，5 道题，覆盖推导和实现要点。我作答后评分，并说明是否达到 Mastered 的要求。
-
 **更新进度（SYNC）：**
 
-> SYNC 模式：把 M04.2 的学习状态改为 Reviewed，证据是 `make ex M=04` 全部通过（commit `<hash>`）和 `progress/diagnostics/` 中的自测记录。然后运行 `make sync` 与 `make check`。
+> SYNC 模式：把 M01.5 的学习状态改为 Reviewed，证据是“跑通 notebooks/05-high-performance-python.ipynb，并在第 4 节换用自己的数据做了对比”。然后运行 `make sync` 与 `make check`。
 
 **核实资料（VERIFY）：**
 
@@ -58,11 +54,11 @@
 
 **研究问题驱动的学习：**
 
-> 我在研究中遇到了锚点 A2 相关的问题（主动学习迭代后模型在目标构型上没有改进）。请根据 `docs/research-anchors.md` 和 `curriculum.yaml`，列出我需要补的章节及其当前状态，给出一个两周的插队学习计划，并更新 `ROADMAP.md`。
+> 我在研究中遇到了锚点 A2 相关的问题（主动学习迭代后模型在目标构型上没有改进）。请根据 `docs/research-anchors.md` 和 `curriculum.yaml`，列出我需要补的章节及其当前状态，给出一个两周的插队学习计划。
 
 **周计划：**
 
-> 根据 `ROADMAP.md` 和 `curriculum.yaml` 的当前状态，为我制定下周的学习计划（总计约 9 小时），并检查接下来两章是否已建设好；如未建设，列入本周 BUILD 任务。
+> 根据 Path B 和 `curriculum.yaml` 的当前状态，为我制定下周的学习计划（总计约 9 小时），并检查接下来要学的模块是否已建设好；如未建设，列入 BUILD 任务。
 
 **整理学习日志：**
 
@@ -70,4 +66,4 @@
 
 **月度复盘：**
 
-> 按 `templates/review-template.md` 准备本月复盘的框架：列出本月状态有变化的章节、未解决的疑问和到期复测。各项评价留给我填写。
+> 按 `templates/review-template.md` 准备本月复盘的框架：列出本月状态有变化的章节和未解决的疑问。各项评价留给我填写。

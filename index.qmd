@@ -61,9 +61,8 @@ if roadmap.is_file():
     print("个人化路线见 [ROADMAP.md](ROADMAP.md)。\n")
 else:
     print(
-        "**阶段 0：仓库初始化与诊断（第 1–2 周）。** 仓库骨架与试点章节 M04.2 已就绪。"
-        "下一步是 Phase 1b：为 Module 01–05 做诊断测评，据此生成个人化的 `ROADMAP.md`。"
-        "默认的 12 个月计划见 [Path B](learning-paths/path-b-ai-for-science.md)。\n"
+        "**Phase 2：按模块建设核心课程。** 每章交付讲义和带运行结果的实例 notebook，"
+        "一次建设一个模块。学习顺序见 [Path B](learning-paths/path-b-ai-for-science.md)。\n"
     )
 
 # ---------------------------------------------------------------- 接下来的章节
@@ -77,9 +76,9 @@ if queue:
         print(f"| {chapter_link(ch)} | {ch['priority']} | {ch['learn_status']} | {ch['build_status']} |")
     print()
     if len(queue) < 3:
-        print("讲义按即时建设原则创建，最多领先学习进度两章。需要新章节时，让 Agent 以 BUILD 模式建设。\n")
+        print("内容按模块建设。需要新模块时，让 Agent 以 BUILD 模式建设。\n")
 else:
-    print("没有已建设且未学完的章节。让 Agent 以 BUILD 模式建设 `ROADMAP.md` 中的下一章。\n")
+    print("没有已建设且未学完的章节。让 Agent 以 BUILD 模式建设下一个模块。\n")
 
 # ---------------------------------------------------------------- 模块进度
 print("## 模块进度\n")
@@ -122,8 +121,8 @@ if status["open_annotations"]:
 else:
     print("目前没有。阅读讲义时用代码片段 `aq`（疑问）或 `ab`（勘误）在原处插入批注，它们会汇总到这里。\n")
 
-# ---------------------------------------------------------------- 到期复测
-print("## 到期复测\n")
+# ---------------------------------------------------------------- 到期回顾
+print("## 到期回顾\n")
 today = date.today().isoformat()
 due = sorted((c for c in chapters if c["next_review"] and c["next_review"] <= today),
              key=lambda c: c["next_review"])
@@ -131,16 +130,16 @@ upcoming = sorted((c for c in chapters if c["next_review"] and c["next_review"] 
                   key=lambda c: c["next_review"])
 if due:
     for ch in due:
-        print(f"- {chapter_link(ch)}：应于 {ch['next_review']} 复测")
+        print(f"- {chapter_link(ch)}：计划于 {ch['next_review']} 回顾")
     print()
 elif upcoming:
     ch = upcoming[0]
-    print(f"今天没有到期的复测。最近一次：{chapter_link(ch)}，{ch['next_review']}。\n")
+    print(f"今天没有到期的回顾。最近一次：{chapter_link(ch)}，{ch['next_review']}。\n")
 else:
-    print("还没有安排复测。章节达到 `Mastered` 后，在讲义 frontmatter 的 `next_review` 填写日期（约 1 个月和 3 个月后各一次）。\n")
+    print("还没有安排回顾。想隔一段时间重读某章时，在讲义 frontmatter 的 `next_review` 填写日期。\n")
 
 # ---------------------------------------------------------------- 测试结果
-print("## 最近一次练习测试\n")
+print("## 最近一次练习测试（M04.2）\n")
 if last:
     s = last["summary"]
     when = (last.get("timestamp") or "")[:16].replace("T", " ")
@@ -160,12 +159,12 @@ else:
 
 ## 怎么用这个仓库
 
-阅读在浏览器里的学习网站完成，批注、练习和测试在 VS Code 里完成，两者读写的是同一份源文件。
+阅读在浏览器里的学习网站完成，批注和运行 notebook 在 VS Code 里完成，两者读写的是同一份源文件。
 
 1. `make preview` 启动本地网站，保存源文件后页面自动刷新；
 2. 读讲义时点击页面顶部的“在 VS Code 中编辑”，用代码片段插入批注；
-3. 从讲义的“代码导航”跳到练习，实现后用 `make ex M=04` 或测试面板检查；
+3. 从讲义的“实例 Notebook”小节打开该章 notebook，在 VS Code 中逐单元运行、改参数；
 4. 用 `make status ID=M04.2 S=Practicing` 更新学习状态，本页随之更新；
-5. 让 Agent 处理未解决的疑问，或建设下一章。
+5. 让 Agent 处理未解决的疑问，或建设下一个模块。
 
 完整说明见[快速开始](docs/getting-started.md)和[学习指南](docs/learning-guide.md)。

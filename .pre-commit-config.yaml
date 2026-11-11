@@ -13,11 +13,13 @@ repos:
         entry: uv run ruff format
         language: system
         types: [python]
+      # modules/*/notebooks/ 是各章的实例讲解 notebook，输出需要保留，不清除。
       - id: nbstripout
         name: nbstripout（清除 notebook 输出）
         entry: uv run nbstripout
         language: system
         files: \.ipynb$
+        exclude: ^modules/[^/]+/notebooks/
       - id: sync-index
         name: 索引是否最新（否则运行 make sync）
         entry: uv run python scripts/sync_index.py --check

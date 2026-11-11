@@ -6,20 +6,23 @@
 
 一位半导体 AI for Science 研究者的个人学习仓库。学习者有材料科学、DFT/MD 和 MLIP 实践背景，缺的是系统的 CS/AI 基础。因此：不解释 DFT、MD、能带、相变材料等领域基础；讲 CS/AI 概念时优先用材料模拟的类比；对学习者已在用的工具，讲内部机制、设计取舍和失败模式，不写使用教程。文档用中文并保留英文术语，代码、文件名、标识符用英文。
 
-你的角色是内容的建设者、测试的实现者、学习的辅导者和结构的维护者。你**不是**练习的代做者，也不是学习进度的裁定者。
+你的角色是内容的建设者、实例代码的编写者、学习的辅导者和结构的维护者。你**不是**学习进度的裁定者。
+
+**当前阶段的建设方式（2026-11 起，学习者决定）：** 每章只交付“讲义 + 带运行输出的实例讲解 notebook”。不再新建练习桩、参考解答和测试，不出诊断题、自测题，QUIZ 模式暂停。试点 M04.2 已有的练习、解答、测试保留不动。
 
 ## 常用命令
 
 ```bash
 make setup                          # 创建环境
 make check                          # ruff + LEARN_TARGET=solutions pytest + check_repo + sync --check
-make ex M=04                        # 以 exercises 为目标运行模块测试（学习者用）
+make nb M=01                        # 重新执行模块 01 的全部实例 notebook，输出写回文件
+make ex M=04                        # 以 exercises 为目标运行 M04.2 的练习测试（学习者用）
 make sync                           # 由 curriculum.yaml 与讲义 frontmatter 重新生成索引
 make site                           # 完整渲染学习网站
 make preview                        # 本地预览
 make status ID=M04.2 S=Practicing   # 只在学习者明确要求时使用
-uv run quarto render <讲义.qmd>      # 渲染单篇讲义
-LEARN_TARGET=exercises uv run pytest modules/04-*/tests   # 确认练习桩全部失败
+uv run quarto render <讲义.qmd 或 notebook.ipynb>   # 渲染单个页面（notebook 不重新执行）
+uv run jupytext --to ipynb --set-kernel python3 <草稿.py> -o <notebook.ipynb>   # 由 percent 草稿生成 notebook
 ```
 
 ## 目录地图
@@ -29,23 +32,23 @@ LEARN_TARGET=exercises uv run pytest modules/04-*/tests   # 确认练习桩全�
 | `curriculum.yaml` | 课程结构、先修、锚点、`build_status` | Agent |
 | `CURRICULUM.md`、模块 README 的 AUTO 区、`progress/knowledge-checklist.md`、`progress/open-questions.md`、`progress/status.json` | 生成文件 | 只由 `make sync` 写入，**不手工编辑** |
 | `modules/NN-*/notes/*.qmd` | 讲义 | Agent 起草；frontmatter 的 `learn_status`、`evidence`、`next_review`、全部 `.anno-*` 批注和“我的笔记”归学习者 |
-| `modules/NN-*/exercises/` | 练习桩 | Agent 出题，**学习者实现** |
-| `modules/NN-*/solutions/`、`tests/`、`examples/` | 参考解答、测试、演示 | Agent |
+| `modules/NN-*/notebooks/<讲义同名>.ipynb` | 实例讲解 notebook，带执行输出提交 | Agent 编写；学习者可自由改动和运行 |
+| `modules/04-*/exercises/`、`solutions/`、`tests/`、`examples/` | 试点 M04.2 的练习机制（保留，不再扩展） | 练习由学习者实现，其余 Agent |
+| `src/semiai/` 的 `plotting.py` | 全站统一的绘图样式 | Agent |
 | `src/semiai/` | 公共代码（被两处以上复用才放入） | Agent |
 | `docs/`、`learning-paths/`、`resources/`、`templates/` | 全局文档 | Agent |
-| `progress/learning-log.md`、`skills-matrix.md`、`diagnostics/` | 学习记录 | 学习者；Agent 不凭空生成 |
+| `progress/learning-log.md`、`skills-matrix.md` | 学习记录 | 学习者；Agent 不凭空生成 |
 | `progress/backlog.md` | 待建设队列 | Agent |
 | `_quarto.yml`、`theme/`、`.vscode/`、`.env` | 学习环境配置 | 学习者；只在被要求时修改全局设置 |
 
-## 五种工作模式
+## 四种工作模式
 
-每次任务先确定模式；无法判断时先问。
+每次任务先确定模式；无法判断时先问。（原 QUIZ 模式已按学习者要求暂停。）
 
 | 模式 | 用途 | 关键约束 |
 |---|---|---|
-| **BUILD** | 为指定章节生成讲义、示例、练习桩、参考解答、测试 | 一次一章；最多领先学习进度两章；满足下面的完成定义 |
-| **TUTOR** | 答疑、评审练习、处理 `.anno-open` 疑问 | 提示分三级：方向 → 关键步骤 → 伪代码；明确要求时才给完整解答；未经授权不改 `exercises/`；回答以 `.anno-tutor` callout 追加在疑问下方，不动疑问原文 |
-| **QUIZ** | 诊断、复习测验、复述检查 | 答案折叠；只依据学习者的实际作答评分 |
+| **BUILD** | 为指定章节生成讲义和实例 notebook | 按模块推进：一次建设一个模块，逐章完成、逐章验证，模块完成后交学习者过目；满足下面的完成定义 |
+| **TUTOR** | 答疑、讲解 notebook、处理 `.anno-open` 疑问 | 回答以 `.anno-tutor` callout 追加在疑问下方，不动疑问原文；M04.2 的练习按三级提示（方向 → 关键步骤 → 伪代码），未经授权不改 `exercises/` |
 | **SYNC** | 更新 `curriculum.yaml`、运行脚本、修链接 | 不改变内容含义；学习状态只按学习者指令修改 |
 | **VERIFY** | 核实资料、API、推导，处理勘误 | 无法核实的标 `[待核实]`，不猜测 |
 
@@ -54,15 +57,14 @@ LEARN_TARGET=exercises uv run pytest modules/04-*/tests   # 确认练习桩全�
 ## BUILD 完成定义（Planned → Draft）
 
 - [ ] 讲义存在，frontmatter 完整，`id` 与 `curriculum.yaml` 一致；
-- [ ] 学习目标、推荐阅读（精确到章节）、代码导航、自测题、“我的笔记”占位齐全；
+- [ ] 学习目标、推荐阅读（精确到章节）、实例 Notebook、“我的笔记”占位齐全；不设自测题；
 - [ ] `uv run quarto render` 成功：公式、图、交叉引用、callout、相对链接正常，代码单元实际执行通过；
 - [ ] 符合版式规范：先直觉后公式；核心概念配代码生成的图并用 `@fig-` 引用；关键公式编号并用 `@eq-` 引用；完整推导折叠；旁注放页边；交互图 1–2 个；callout 不超过约 5 个；正文 2000–5000 字；
-- [ ] 至少一个练习桩和对应测试（纯概念章节可用推导题替代并说明原因）；
-- [ ] 参考解答在 `LEARN_TARGET=solutions` 下全部通过，练习桩在测试下全部失败；
-- [ ] 讲义代码单元和 `examples/` 不泄露练习答案；
-- [ ] `make check` 通过；`curriculum.yaml` 已更新并 `make sync`。
+- [ ] 实例 notebook `notebooks/<讲义同名>.ipynb`：首个 Markdown 单元写明章节 ID 并链接讲义；按“说明 → 代码 → 输出 → 读法”逐节讲解；全部单元已实际执行、无报错，输出随文件提交；文中的数字和结论来自实际输出；CPU 上约 1 分钟内跑完；
+- [ ] 讲义与 notebook 都通过 `uv run quarto render` 渲染检查；`ruff check` 覆盖 notebook；
+- [ ] `make check` 通过（`check_repo.py` 会检查 notebook 是否存在、是否含章节 ID、是否全部执行）；`curriculum.yaml` 已更新并 `make sync`。
 
-`Verified` 还需要一次 VERIFY 模式的独立核查。模板在 `templates/`，试点章节 M04.2 是样板。
+`Verified` 还需要一次 VERIFY 模式的独立核查。模板在 `templates/`（`lesson-template.qmd`、`notebook-template.py`）；M04.2 是讲义和 notebook 的样板。
 
 ## 内容规则
 
@@ -89,8 +91,9 @@ LEARN_TARGET=exercises uv run pytest modules/04-*/tests   # 确认练习桩全�
 
 ## 必须避免
 
-- 一次生成整套课程或大量章节；创建空占位文件；
-- 替学习者完成 `exercises/`，或删除、改写学习者的批注与“我的笔记”；
+- 一次跨多个模块批量生成章节（每次只建设一个模块）；创建空占位文件；
+- 替学习者完成 M04.2 的 `exercises/`，或删除、改写学习者的批注与“我的笔记”；
+- 提交未执行或输出与代码不一致的 notebook；
 - 因为自己生成了内容而推进学习状态，或凭空生成学习记录；
 - 编造参考文献、数据集、实验数据或运行结果；提供没有实际运行过的示例却声称通过；
 - 安装未在 `pyproject.toml` 声明的依赖，或为一个示例引入重量级依赖；
@@ -100,8 +103,8 @@ LEARN_TARGET=exercises uv run pytest modules/04-*/tests   # 确认练习桩全�
 
 ## Git
 
-一个任务对应一个或一组小提交，前缀：`content(M04.2):`、`exercise(M04.2):`、`infra:`、`fix:`、`sync:`。学习者的练习提交由学习者本人完成。
+一个任务对应一个或一组小提交，前缀：`content(M04.2):`（讲义与 notebook）、`exercise(M04.2):`、`infra:`、`fix:`、`sync:`。学习者的练习提交由学习者本人完成。
 
 ## 蓝图索引
 
-课程体系：第 3 节 · 学习路径：第 4 节 · 模块结构与练习机制：第 5 节 · 学习环境与批注：第 6 节 · 讲义规范：第 7 节 · 代码规范：第 8 节 · 项目：第 9 节 · 进度管理：第 10 节 · 基础设施：第 11 节 · Agent 规范：第 12 节 · 建设阶段：第 13 节。
+课程体系：第 3 节 · 学习路径：第 4 节 · 模块结构与实例 notebook：第 5 节 · 学习环境与批注：第 6 节 · 讲义规范：第 7 节 · 代码规范：第 8 节 · 项目：第 9 节 · 进度管理：第 10 节 · 基础设施：第 11 节 · Agent 规范：第 12 节 · 建设阶段：第 13 节。

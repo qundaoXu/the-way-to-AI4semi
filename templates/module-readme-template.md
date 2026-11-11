@@ -23,6 +23,6 @@
 
 - **Ax**：……
 
-## 诊断
+## 实例 notebook
 
-P0 模块在开始前做诊断测评。诊断题以 QUIZ 模式生成，每章 2–4 道（概念、推导、小编程各至少一类），答案折叠；作答结果保存到 `progress/diagnostics/Mxx-YYYY-MM-DD.md`。
+每章配一个带运行结果的实例讲解 notebook，放在 `notebooks/` 目录，与讲义同名；章节表中“notebook”链接指向它。在 VS Code 中打开即可逐单元运行，改动后用 `make nb M=NN` 重新执行并保存输出。

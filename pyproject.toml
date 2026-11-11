@@ -55,6 +55,3 @@ extend-exclude = ["_site", "_freeze", ".quarto", "library"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "NPY"]
-
-[tool.jupytext]
-formats = "ipynb,py:percent"
