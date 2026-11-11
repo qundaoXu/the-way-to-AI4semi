@@ -7,7 +7,7 @@ PY  := $(RUN) python
 .PHONY: help setup check ex sync test-src preview site status
 
 help:
-	@echo "make setup                         创建环境，安装 semiai、dev 依赖与 Quarto"
+	@echo "make setup                         创建环境，安装 semiai 与 dev 依赖"
 	@echo "make check                         ruff + 参考解答测试 + 仓库一致性 + 索引检查"
 	@echo "make ex M=04                       用自己的练习实现运行模块 04 的测试"
 	@echo "make sync                          重新生成索引（CURRICULUM.md、进度清单等）"
@@ -17,6 +17,7 @@ help:
 	@echo "make status ID=M04.2 S=Practicing  修改某章的学习状态并同步索引"
 
 setup:
+	@command -v quarto >/dev/null || echo "提示：未找到 Quarto CLI，make preview / make site 需要它，见 docs/getting-started.md"
 	$(UV) sync
 	$(RUN) pre-commit install
 

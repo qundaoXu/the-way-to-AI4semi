@@ -21,7 +21,13 @@ jobs:
         with:
           enable-cache: true
 
-      # 安装核心依赖、dev 组与 Quarto（site 组，版本由 uv.lock 锁定）。
+      # Quarto CLI 单独安装，版本与 docs/getting-started.md 记录的一致。
+      - name: Install Quarto
+        uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: 1.11.9
+
+      # 安装核心依赖与 dev 组。
       # PyTorch 尚未加入依赖；加入 dl extra 后在这里安装 CPU 版。
       - name: Install dependencies
         run: uv sync --locked

@@ -12,10 +12,10 @@
 
 ## 快速开始
 
-需要 [uv](https://docs.astral.sh/uv/)、Git、GNU Make 和 VS Code。Quarto 随依赖一起安装，不用单独装。
+需要 [uv](https://docs.astral.sh/uv/)、[Quarto CLI](https://quarto.org/docs/get-started/)、Git、GNU Make 和 VS Code。
 
 ```bash
-make setup      # 创建 .venv，安装依赖与 Quarto
+make setup      # 创建 .venv，安装依赖
 make check      # 验证环境：ruff + 测试 + 仓库一致性
 make preview    # 启动本地学习网站
 make ex M=04    # 用自己的实现运行模块 04 的练习测试

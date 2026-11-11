@@ -9,22 +9,26 @@
 | [uv](https://docs.astral.sh/uv/) | Python 环境与依赖管理 | 会按 `.python-version` 自动准备 Python 3.12 |
 | Git、GNU Make | 版本管理、命令入口 | macOS 与 Linux 自带或用包管理器安装 |
 | [VS Code](https://code.visualstudio.com/) | 编辑、批注、练习、测试 | 扩展见第 4 节 |
-| Quarto | 渲染学习网站 | **不需要单独安装**，见下文 |
+| [Quarto CLI](https://quarto.org/docs/get-started/) | 渲染学习网站 | 单独安装，见下文 |
 
 本仓库在 2026-11-11 搭建并验证时使用的版本：Quarto 1.11.9，Python 3.12，uv 0.11。
 
-### 关于 Quarto 的安装方式
+### 安装 Quarto
 
-蓝图原计划单独安装 Quarto CLI。实际采用的做法是把 Quarto 官方的 PyPI 发行版 `quarto-cli` 放进 `pyproject.toml` 的 `site` 依赖组：`make setup` 时它被装进 `.venv`，版本由 `uv.lock` 锁定，本机和 CI 用的是同一个版本，`make preview`、`make site` 通过 `uv run quarto` 调用它。
+Quarto CLI 安装在系统里，不随 Python 依赖安装。macOS 上任选一种方式：
 
-如果你已经用安装包或 Homebrew 装过 Quarto，想用系统里的那一份，可以 `uv sync --no-group site`，此时 `uv run quarto` 会找到 PATH 上的 Quarto。
+```bash
+brew install --cask quarto        # 需要输入一次管理员密码
+```
+
+或者从 [quarto.org](https://quarto.org/docs/get-started/) 下载安装包。安装后用 `quarto --version` 确认。升级 Quarto 后，把本页记录的版本和 `.github/workflows/ci.yml` 里的版本一起更新。
 
 ## 2. 安装
 
 ```bash
 git clone https://github.com/qundaoXu/the-way-to-AI4semi.git
 cd the-way-to-AI4semi
-make setup      # 创建 .venv，安装 semiai（可编辑模式）、dev 依赖、Quarto，并启用 pre-commit
+make setup      # 创建 .venv，安装 semiai（可编辑模式）与 dev 依赖，并启用 pre-commit
 make check      # 验证：ruff + 参考解答测试 + 仓库一致性 + 索引检查
 ```
 

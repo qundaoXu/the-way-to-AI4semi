@@ -32,15 +32,6 @@ dev = [
     "pre-commit",
     "nbstripout",
 ]
-# Quarto CLI 的 PyPI 发行版：安装时从 Quarto 官方 release 下载对应平台的二进制到 .venv。
-# 已经单独安装过 Quarto 的机器可以用 `uv sync --no-group site` 跳过。
-site = [
-    "quarto-cli",
-]
-
-[tool.uv]
-default-groups = ["dev", "site"]
-
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

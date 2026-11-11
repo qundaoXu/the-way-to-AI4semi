@@ -16,9 +16,8 @@
     "editor.codeActionsOnSave": { "source.organizeImports": "explicit" }
   },
 
-  // Quarto：保存即渲染；优先使用 .venv 中随依赖安装的 Quarto
+  // Quarto：保存即渲染（使用系统安装的 Quarto CLI）
   "quarto.render.renderOnSave": true,
-  "quarto.usePipQuarto": true,
   "[quarto]": {
     "editor.wordWrap": "on",
     "editor.quickSuggestions": { "other": true, "comments": false, "strings": false },
