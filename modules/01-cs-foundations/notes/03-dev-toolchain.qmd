@@ -1,0 +1,325 @@
+---
+id: M01.3
+title: 开发工具链
+subtitle: Development Toolchain
+module: M01
+priority: P0
+tags: [FT]
+prereqs: []
+anchors: []
+build_status: Draft          # 由 sync_index.py 从 curriculum.yaml 镜像，请勿手改
+learn_status: Not Started    # 学习者所有：Not Started / Reading / Practicing / Reviewed / Mastered
+evidence: []                 # 学习者所有：掌握证据（测试提交、复测记录等）
+next_review:                 # 学习者所有：下次复测日期
+last_reviewed: 2026-11-11
+code-fold: true
+code-summary: "显示绘图代码"
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import BLUE, GRAY, INK, MUTED, ORANGE, SURFACE, use_style
+
+use_style()
+```
+
+## 0. 定位
+
+Shell、Git、环境管理、调试器、日志、测试框架、静态检查，单独看都是“会用就行”的工具。它们真正的价值在于连成一条链：每一环拦住一类错误，让一段科研代码从“在我机器上跑过一次”变成“任何时候、任何人都能重现同样的结果”。本章不讲命令清单，讲这些工具内部的模型和它们各自防住的失败模式，并以本仓库自己的工具链为例。
+
+## 1. 学习目标
+
+学完本章，你应当能够：
+
+- **解释** Git 的对象模型（blob、tree、commit）以及“内容寻址”如何决定提交哈希；
+- **判断** merge 与 rebase 的适用场合，**说明** rebase 为什么会改写历史、改写后如何用 reflog 找回；
+- **使用** `git bisect run` 自动定位引入回归的提交，并**估计**所需的测试次数；
+- **写出**出错即停的 Shell 脚本，**配置** `logging` 的级别、层级与 handler；
+- **运用**事后调试取回崩溃现场，**写出**带容差的数值测试；
+- **说明**锁文件、静态检查、pre-commit 与 CI 在工具链中各自承担的职责。
+
+## 2. 前置知识
+
+本章不依赖其他章节。默认你已经在日常工作中使用 Linux 命令行、Git 的基本命令（`add`、`commit`、`push`、`pull`）和 conda 环境。本仓库的工具配置是本章的案例：[Makefile](../../../Makefile)、[.pre-commit-config.yaml](../../../.pre-commit-config.yaml)、[pyproject.toml](../../../pyproject.toml)，以及[代码规范](../../../docs/coding-standards.md)。
+
+## 3. 推荐阅读
+
+1. **Chacon, S., Straub, B. *Pro Git*（第 2 版）**：3.6 节（Rebasing）、7.6 节（Rewriting History）、7.10 节（Debugging with Git，含 bisect）、10.2 节（Git Objects）、10.7 节（Maintenance and Data Recovery，含 reflog）。第 10 章是本章 Git 部分的主干，建议先读 10.2 再回头读 3.6。[在线免费阅读](https://git-scm.com/book/en/v2)
+2. **MIT, *The Missing Semester of Your CS Education*（2026 版）**：Command-line Environment、Version Control and Git、Debugging and Profiling、Code Quality 四讲。覆盖面广、节奏快，适合查漏补缺。[课程主页](https://missing.csail.mit.edu/)
+3. **官方文档**：uv 的 [Locking and syncing](https://docs.astral.sh/uv/concepts/projects/sync/)（锁文件与环境的关系）；pytest 的 [How to write and report assertions in tests](https://docs.pytest.org/en/stable/how-to/assert.html)（含 `pytest.approx`）与 [How to parametrize fixtures and test functions](https://docs.pytest.org/en/stable/how-to/parametrize.html)。
+
+## 4. 核心概念与直觉
+
+### 4.1 Git 的历史是一张内容寻址的有向无环图
+
+先看 @fig-merge-rebase。每个圆点是一个提交，箭头指向父提交。`main` 和 `feature` 从 A 分叉后各自前进，要把它们合起来有两种办法。merge 新建一个有两个父提交的合并提交 M，原有提交一个不动。rebase 把 B 的改动“重放”到 C 之后，得到一个新提交 B'：改动内容和 B 完全一样，哈希却不同。原来的 B 没有被删除，只是不再有分支指向它。
+
+```{python}
+#| label: fig-merge-rebase
+#| fig-cap: "同一个分叉的两种合并方式。左：merge 保留真实历史，新增合并提交 M。右：rebase 把 B 重放为新提交 B'，原来的 B（虚线）不再被任何分支引用，只留在 reflog 中。箭头从子提交指向父提交。"
+#| fig-alt: "两幅并排的提交图。左图 A 分出 B 和 C，再汇合到 M；右图 A、C、B' 排成一条直线，旁边有一个虚线圆表示旧的 B。"
+def node(ax, xy, label, color=BLUE, dashed=False):
+    circle = plt.Circle(xy, 0.28, facecolor=SURFACE if dashed else color,
+                        edgecolor=GRAY if dashed else color, lw=2,
+                        ls=(0, (3, 2)) if dashed else "-", zorder=3)
+    ax.add_patch(circle)
+    ax.text(*xy, label, ha="center", va="center", zorder=4,
+            color=MUTED if dashed else SURFACE, fontsize=12, fontweight="bold")
+
+
+def edge(ax, child, parent, dashed=False):
+    ax.annotate("", parent, child, zorder=2, arrowprops=dict(
+        arrowstyle="-|>", color=GRAY if dashed else MUTED, lw=1.4, shrinkA=22, shrinkB=22,
+        mutation_scale=14,
+        ls=(0, (3, 2)) if dashed else "-"))
+
+
+fig, axes = plt.subplots(1, 2, figsize=(8.4, 3.0))
+ax = axes[0]
+A, B, C, M = (0, 0), (1.3, 0.9), (1.3, -0.9), (2.6, 0)
+for child, parent in ((B, A), (C, A), (M, B), (M, C)):
+    edge(ax, child, parent)
+for xy, lab, col in ((A, "A", BLUE), (B, "B", ORANGE), (C, "C", BLUE), (M, "M", INK)):
+    node(ax, xy, lab, col)
+ax.text(2.6, -0.55, "main", ha="center", color=MUTED, fontsize=9)
+ax.set_title("merge", loc="left", fontsize=11)
+
+ax = axes[1]
+A, C, B2, B_old = (0, 0), (1.3, 0), (2.6, 0), (1.3, 0.95)
+edge(ax, C, A)
+edge(ax, B2, C)
+edge(ax, B_old, A, dashed=True)
+node(ax, A, "A")
+node(ax, C, "C")
+node(ax, B2, "B'", ORANGE)
+node(ax, B_old, "B", dashed=True)
+ax.text(2.6, -0.55, "feature", ha="center", color=MUTED, fontsize=9)
+ax.text(1.75, 1.0, "只在 reflog 中", color=MUTED, fontsize=9, va="center")
+ax.set_title("rebase", loc="left", fontsize=11)
+
+for ax in axes:
+    ax.set_aspect("equal")
+    ax.set(xlim=(-0.5, 3.4), ylim=(-1.4, 1.4))
+    ax.axis("off")
+fig.tight_layout()
+plt.show()
+```
+
+为什么改动相同、哈希却不同？因为 Git 是一个**内容寻址**的数据库：每个对象的名字就是它内容的哈希（见 5.1 节）。提交对象的内容里写着它的父提交，父提交变了，哈希就必然变。理解了这一点，“rebase 改写历史”“不要 rebase 已推送的提交”这些规则就不需要死记了。
+
+::: {.column-margin}
+**类比**：把一次 DFT 计算的结果按“输入文件的哈希”存档。改了一个 k 点，哈希就变，是另一个计算；结果相同的两个输入，也会有不同的名字，只要输入文本不同。Git 对提交做的是同一件事，而“父提交是谁”也是输入的一部分。
+:::
+
+### 4.2 工具链：每一环拦住一类错误
+
+把一次代码改动从编辑到发布的路径摊开，每一环都对应一类典型故障。
+
+::: {.panel-tabset}
+
+### 环节与故障
+
+| 环节 | 工具 | 拦住的故障 |
+|---|---|---|
+| 环境 | uv、conda | “我这里能跑”：依赖版本不同导致结果不同或直接报错 |
+| 脚本 | Bash 严格模式 | 中间一步失败，后续步骤在残缺数据上继续运行 |
+| 静态检查 | ruff | 未使用的导入、裸 `except`、可变默认参数等不运行就能发现的 bug |
+| 测试 | pytest | 改动破坏了原有功能，或数值结果悄悄漂移 |
+| 提交前 | pre-commit | 忘记运行上面两步 |
+| 历史 | Git | 不知道哪次改动引入了问题，也回不到之前的状态 |
+| 运行中 | logging、调试器 | 长任务崩溃后不知道发生了什么 |
+
+### 本仓库
+
+- [pyproject.toml](../../../pyproject.toml) 声明依赖，`uv.lock` 锁定精确版本，`make setup` 即 `uv sync`；
+- `make check` 依次运行 `ruff check`、`pytest`、两个一致性脚本；
+- [.pre-commit-config.yaml](../../../.pre-commit-config.yaml) 在每次 `git commit` 前运行 ruff 和索引检查，工具版本都来自 `.venv`；
+- CI（`.github/workflows/ci.yml`）在推送后用 `uv sync --locked` 重建环境，再跑一遍 `make check`。
+
+:::
+
+## 5. 原理
+
+### 5.1 对象与哈希
+
+Git 仓库里只有几种对象。**blob** 保存文件内容，不含文件名；**tree** 是一个目录清单，把文件名映射到 blob 或子 tree 的哈希；**commit** 指向一个顶层 tree，记录父提交、作者、提交者、时间和说明。每个对象的名字是对“类型、字节数、内容”做 SHA-1：
+
+$$
+\operatorname{id}(\text{obj}) = \operatorname{SHA1}\big(\mathtt{type} \,\|\, \text{空格} \,\|\, \mathtt{len} \,\|\, \mathtt{\backslash 0} \,\|\, \text{content}\big).
+$$ {#eq-object-id}
+
+其中 $\|$ 表示字节串拼接，$\mathtt{len}$ 是内容的字节数（十进制文本），$\mathtt{\backslash 0}$ 是一个空字节。例如一个 31 字节的文件，参与哈希的是 `blob 31\0` 后接文件内容。实例 notebook 第 1 节用 `hashlib` 手算了一个 blob 的哈希，与 `git` 给出的完全一致。由 @eq-object-id 可以推出三条性质。第一，内容相同的文件只存一份，无论它出现在多少个提交、多少个目录里。第二，commit 的哈希间接覆盖了整棵目录树和全部祖先，改动历史上任何一个字节，其后所有提交的哈希都会变，这让历史“防篡改”。第三，提交时间也是内容的一部分，所以即使改动、父提交都相同，不同时间做的提交哈希也不同。
+
+分支只是一个指向某个提交的可移动指针（`.git/refs/heads/` 下的一个文本文件），`HEAD` 指向当前分支。reflog 记录这些指针每一次移动之前的位置，所以 reset、rebase 之类的“破坏性”操作在本地几乎都可以撤销。它有期限：默认 90 天后过期，不可从分支末端到达的条目只保留 30 天，之后 `git gc` 才会真正删除对应的对象。
+
+::: {.column-margin}
+Git 也支持 SHA-256 对象格式（`git init --object-format=sha256`），默认仍是 SHA-1。本章的讨论对两者都成立，只是哈希长度不同。
+:::
+
+### 5.2 merge 与 rebase 的取舍
+
+merge 和 rebase 的最终文件内容通常相同，区别在于历史的形状。merge 如实记录“这两条线曾经并行”，代价是历史图里有很多分叉与汇合。rebase 得到一条直线，读起来像是按顺序开发的，代价是**改写了提交**。只要这些提交还只在你本地，改写没有任何问题；一旦别人已经基于旧提交工作，他们的历史就和你的分叉了。实用规则是：整理自己尚未推送的提交用 rebase（包括 `git rebase -i` 合并零碎提交），合入共享分支用 merge 或托管平台的 squash merge。
+
+::: {.callout-note collapse="true" title="细节：三方合并与冲突是怎么产生的"}
+合并两个分支时，Git 先找到它们的**合并基**（merge base），即两者最近的公共祖先，然后对每个文件做三方比较：基版本 $O$、我方版本 $A$、对方版本 $B$。
+
+- 某区域只有一方相对 $O$ 改动过：采用改动的那一方；
+- 双方都没改：保持 $O$；
+- 双方改成了相同内容：采用该内容；
+- 双方改成了不同内容：**冲突**。Git 把两种版本连同标记 `<<<<<<<`、`=======`、`>>>>>>>` 写进文件，等你决定。
+
+所以冲突不是“两个人改了同一个文件”，而是“两个人改了同一个文件的同一区域，并且改得不一样”。rebase 时冲突也会发生，因为它本质上是逐个提交做三方合并（cherry-pick）；一个分支上有 10 个提交，最坏情况下就要处理 10 次冲突。`git rerere` 可以记住你解决过的冲突，重复出现时自动套用。
+
+“区域”由行级 diff 决定，所以格式化工具对冲突影响很大：如果一方把整个文件重新格式化，几乎每一行都会与另一方冲突。这是统一使用 `ruff format` 并在 pre-commit 中强制执行的一个实际理由。
+:::
+
+### 5.3 bisect：在历史上做二分查找
+
+已知某个旧提交是好的、当前提交是坏的，中间有 $n$ 个可疑提交。每测试一个中间提交，可疑范围减半，所以对于线性历史，找到第一个坏提交最多需要
+
+$$
+k = \lceil \log_2 n \rceil
+$$ {#eq-bisect}
+
+次测试。$n = 1000$ 时只要 10 次，逐个检查却可能要 999 次。如果一次测试是一段 20 分钟的 MD 回归模拟，这就是 3 小时和两周的差别。拖动 @fig-bisect 的滑块，改变第一个坏提交的位置：无论它在哪里，二分的步数几乎不变。
+
+```{python}
+#| label: fig-bisect
+#| fig-cap: "在 64 个提交上二分查找第一个坏提交（交互图）。每一行是一步之后剩下的可疑区间，橙色虚线是真正的第一个坏提交。滑块改变坏提交的位置。"
+import plotly.graph_objects as go
+
+from semiai.plotting import plotly_html, plotly_layout
+
+N = 64  # 提交 0 已知是好的，提交 64 已知是坏的
+
+
+def bisect_steps(bad: int) -> list[tuple[int, int]]:
+    lo, hi, steps = 0, N, [(0, N)]
+    while hi - lo > 1:
+        mid = (lo + hi) // 2
+        lo, hi = (lo, mid) if mid >= bad else (mid, hi)
+        steps.append((lo, hi))
+    return steps
+
+
+positions = list(range(1, N + 1, 3))
+fig = go.Figure()
+for i, bad in enumerate(positions):
+    steps = bisect_steps(bad)
+    xs, ys = [], []
+    for k, (lo, hi) in enumerate(steps):
+        xs += [lo, hi, None]
+        ys += [k, k, None]
+    visible = i == 13
+    fig.add_scatter(x=xs, y=ys, mode="lines", line=dict(color=BLUE, width=10),
+                    name="可疑区间", visible=visible, hoverinfo="skip")
+    fig.add_scatter(x=[bad, bad], y=[-0.5, len(steps) - 0.5], mode="lines",
+                    line=dict(color=ORANGE, dash="dash", width=2), name="第一个坏提交",
+                    visible=visible, hoverinfo="skip")
+
+slider_steps = []
+for i, bad in enumerate(positions):
+    vis = [False] * (2 * len(positions))
+    vis[2 * i] = vis[2 * i + 1] = True
+    n_tests = len(bisect_steps(bad)) - 1
+    slider_steps.append(dict(method="update", label=str(bad), args=[
+        {"visible": vis}, {"title.text": f"第一个坏提交 = {bad}，测试次数 = {n_tests}"}]))
+
+layout = plotly_layout(height=380, showlegend=False)
+layout["xaxis"].update(title="提交序号", range=[-1, N + 1])
+layout["yaxis"].update(title="二分步数", autorange="reversed")
+fig.update_layout(
+    **layout,
+    title=dict(text=slider_steps[13]["args"][1]["title.text"], font=dict(size=13, color=MUTED),
+               x=0.02),
+    sliders=[dict(active=13, steps=slider_steps, currentvalue=dict(prefix="坏提交位置 = "),
+                  pad=dict(t=40))],
+)
+plotly_html(fig)
+```
+
+@eq-bisect 有两个前提。一是历史近似线性；有大量合并时，Git 会在提交图上选择能最均匀划分候选集的点，步数仍接近对数。二是**测试本身可靠**：bisect 只是把一个判断函数在历史上反复调用，判断错一次，结论就错。实例 notebook 第 4 节就记录了一个真实的例子：同一个测试脚本，因为 Python 字节码缓存而读到了旧代码，bisect 自信地给出了错误答案。
+
+## 6. 算法与实现要点
+
+**Shell：出错即停。** Bash 默认在命令失败后继续执行。脚本开头写 `set -euo pipefail`：`-e` 遇到失败立即退出，`-u` 把未定义变量当作错误，`pipefail` 让管道中任意一段失败都算失败。变量一律加双引号（`"$file"`），否则含空格的路径会被拆开。超过几十行、需要数据结构或浮点运算的逻辑，改用 Python。
+
+**环境：声明、锁定、同步。** `pyproject.toml` 写“需要什么”（可以是范围），`uv.lock` 写“具体装了什么”（精确版本和哈希），`uv sync` 让 `.venv` 与锁文件一致，`uv run` 在运行前自动同步。conda 的优势在于能管理 MPI、CUDA、编译器这类非 Python 二进制依赖，这是很多 DFT/MD 软件栈离不开它的原因；但 `environment.yml` 通常只写包名，不同时间创建的环境可能不同。两者可以分工：conda 提供系统级依赖，项目内的 Python 包交给锁文件管理。
+
+**调试：先复现，再缩小。** 能稳定复现的 bug 就解决了一半。缩小范围的工具按代价排序：读 traceback；事后调试（`python -m pdb script.py`，或在 Jupyter 中异常后输入 `%debug`），直接查看崩溃现场的局部变量；在可疑位置写 `breakpoint()`；VS Code 的条件断点；最后才是 bisect。`print` 调试的问题在于每次都要改代码、重跑，而且容易忘了删。
+
+**日志：库只产生消息，入口决定去向。** 模块里写 `log = logging.getLogger(__name__)`，只调用 `log.info(...)` 等方法；程序入口调用一次 `logging.basicConfig` 或配置 handler。级别从低到高为 DEBUG、INFO、WARNING、ERROR、CRITICAL。捕获异常时用 `log.exception(...)`，它会附上完整 traceback。
+
+**测试：数值比较要带容差。** 用 `pytest.approx` 或 `numpy.testing.assert_allclose`，容差写明来源。用 `@pytest.mark.parametrize` 覆盖多组输入，而不是在一个测试里写循环：参数化后每组输入单独报告成败。测试文件和被测代码放在同一个仓库、由同一条命令运行（本仓库是 `make check`）。
+
+**静态检查与 pre-commit。** ruff 不运行代码，只分析语法树，速度快到可以在每次保存或提交时运行。pre-commit 只检查本次暂存的文件；发现问题时提交失败，修复后重新 `git add` 再提交。pre-commit 可以被 `--no-verify` 绕过，所以 CI 是最后一道防线。
+
+## 7. 实例 Notebook
+
+本章的代码讲解在 [notebooks/03-dev-toolchain.ipynb](../notebooks/03-dev-toolchain.ipynb)。所有 Git 操作都在临时目录里进行，作者和时间被固定，所以重新运行得到的提交哈希与页面上显示的一致。
+
+| 节 | 内容 | 对应讲义 |
+|---|---|---|
+| 1 | 用 `hashlib` 手算 blob 哈希，查看 commit 与 tree 对象 | 5.1 节，@eq-object-id |
+| 2 | merge 与 rebase 的历史、哈希与 diff 对比，用 reflog 找回旧提交 | 4.1、5.2 节 |
+| 3 | 制造并解决一次合并冲突 | 5.2 节折叠框 |
+| 4 | `git bisect run` 在 64 个提交中定位回归；字节码缓存导致的错误结论 | 5.3 节，@eq-bisect |
+| 5 | `set -euo pipefail` 前后的脚本行为 | 第 6 节 |
+| 6 | `logging` 的层级、级别与两个 handler | 第 6 节 |
+| 7 | 从 traceback 取回崩溃现场的局部变量 | 第 6 节 |
+| 8 | pytest 参数化与浮点容差；ruff 检查一段有问题的代码 | 第 6 节 |
+
+在 VS Code 中打开，选择仓库 `.venv` 的内核，从上到下运行即可，需要本机有 `git` 和 `bash`；改动后用 `make nb M=01` 重新执行并保存输出。本章以工具的机制与 Level 2 的标准用法为主，不涉及从零实现。
+
+## 8. 领域连接
+
+**计算流水线的脚本。** 生成结构、提交 DFT/MD 作业、收集结果、后处理，这条链上任何一步静默失败，最后得到的是一张看起来正常、实际上缺了数据的图。严格模式的 Shell 和带返回码检查的 Python 驱动脚本，是批量高通量计算的底线。
+
+**势函数开发中的回归。** 训练代码或数据处理改了几十次之后，发现新势的 NVE 能量漂移变大。只要能写出一个“训练小模型并跑一段短 MD，检查漂移是否超过阈值”的脚本，`git bisect run` 就能自动找到是哪次改动引入的。前提是每次提交都能运行、测试足够快，这反过来要求提交保持小而完整。
+
+**可复现性。** 论文中的数字应该能追溯到某个提交哈希和某个锁文件。提交哈希通过 @eq-object-id 唯一地确定了代码的全部内容，锁文件确定了依赖，两者加上输入数据的版本，就是重现一次计算所需的全部信息。
+
+**长任务的日志。** 几天的 MD 或主动学习循环，崩溃时最需要的是崩溃之前的状态。按级别写日志、用 `log.exception` 记录异常、在关键步骤记录参数和随机种子，比事后翻 `nohup.out` 有用得多。
+
+本章没有直接对应的研究锚点，它是所有锚点的工程底座。
+
+## 9. 常见误区与失败模式
+
+::: {.callout-warning title="不要改写已经共享的历史"}
+对已经推送、别人可能已经拉取的提交做 rebase、`commit --amend` 或 `reset` 后强制推送，会让协作者的历史与远程分叉。确需修正时，用 `git revert` 生成一个反向提交。误操作后先别慌：本地的 `git reflog` 里几乎总能找到原来的提交。
+:::
+
+其余常见问题如下。
+
+- 把大文件（轨迹、`WAVECAR`、模型权重）提交进 Git：即使后来删除，它们也永远留在历史里，仓库体积只增不减。本仓库的 `.gitignore` 已经覆盖了常见类型。
+- 一个提交混合了多件不相关的改动：无法单独回退，bisect 定位到它也无济于事。
+- Shell 脚本不检查失败，或把 `cd` 的失败忽略后在错误目录里执行 `rm`。
+- 在 `base` conda 环境里装项目依赖，或者 conda 与 pip 混装后无法重建环境。
+- 测试中用 `==` 比较浮点数；或者容差设得过宽，什么错误都能通过。
+- 在库代码里调用 `logging.basicConfig`，或给库的 logger 加 handler，导致调用者看到重复的日志。
+- 用 `except:` 或 `except Exception: pass` 吞掉异常，问题被推迟到更远、更难查的地方才暴露。
+
+## 10. 小结
+
+- Git 是内容寻址的对象数据库，提交哈希由内容、父提交、作者和时间共同决定（@eq-object-id），所以 rebase 必然产生新提交；reflog 让本地的误操作几乎都可撤销。
+- merge 保留真实历史，rebase 得到线性历史但改写提交；只 rebase 尚未共享的提交。
+- 冲突来自双方对同一区域的不同修改；`git bisect run` 用约 $\lceil\log_2 n\rceil$ 次测试定位回归，前提是测试可靠。
+- `set -euo pipefail`、锁文件、`logging`、事后调试、带容差的测试、ruff 与 pre-commit，各自拦住一类失败；CI 是最后一道防线。
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::
+
+## 12. 参考资料
+
+- Chacon, S., Straub, B. *Pro Git*, 2nd ed. Apress, 2014. <https://git-scm.com/book/en/v2>
+- MIT CSAIL. *The Missing Semester of Your CS Education*, 2026 edition. <https://missing.csail.mit.edu/>
+- Astral. *uv documentation: Locking and syncing*. <https://docs.astral.sh/uv/concepts/projects/sync/>
+- pytest developers. *How to write and report assertions in tests*. <https://docs.pytest.org/en/stable/how-to/assert.html>
+- pytest developers. *How to parametrize fixtures and test functions*. <https://docs.pytest.org/en/stable/how-to/parametrize.html>
