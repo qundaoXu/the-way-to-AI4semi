@@ -1,0 +1,1631 @@
+{
+  "totals": {
+    "modules": 12,
+    "chapters": 73,
+    "built": 1,
+    "learn": {
+      "Not Started": 73,
+      "Reading": 0,
+      "Practicing": 0,
+      "Reviewed": 0,
+      "Mastered": 0
+    },
+    "build": {
+      "Planned": 72,
+      "Draft": 1,
+      "Reviewed": 0,
+      "Verified": 0
+    }
+  },
+  "modules": [
+    {
+      "id": "M01",
+      "dir": "modules/01-cs-foundations",
+      "title": "Computer Science Foundations",
+      "title_zh": "计算机基础",
+      "priority": "P0",
+      "hours": "30–45 h",
+      "chapters": 5,
+      "built": 0,
+      "learn": {
+        "Not Started": 5,
+        "Reading": 0,
+        "Practicing": 0,
+        "Reviewed": 0,
+        "Mastered": 0
+      }
+    },
+    {
+      "id": "M02",
+      "dir": "modules/02-mathematics-statistics",
+      "title": "Mathematics, Statistics and Optimization",
+      "title_zh": "数学、统计与最优化",
+      "priority": "P0/P1",
+      "hours": "90–120 h",
+      "chapters": 8,
+      "built": 0,
+      "learn": {
+        "Not Started": 8,
+        "Reading": 0,
+        "Practicing": 0,
+        "Reviewed": 0,
+        "Mastered": 0
+      }
+    },
+    {
+      "id": "M03",
+      "dir": "modules/03-data-science",
+      "title": "Data Science",
+      "title_zh": "数据科学",
+      "priority": "P0",
+      "hours": "30–40 h",
+      "chapters": 6,
+      "built": 0,
+      "learn": {
+        "Not Started": 6,
+        "Reading": 0,
+        "Practicing": 0,
+        "Reviewed": 0,
+        "Mastered": 0
+      }
+    },
+    {
+      "id": "M04",
+      "dir": "modules/04-classical-machine-learning",
+      "title": "Classical Machine Learning",
+      "title_zh": "传统机器学习",
+      "priority": "P0",
+      "hours": "60–80 h",
+      "chapters": 8,
+      "built": 1,
+      "learn": {
+        "Not Started": 8,
+        "Reading": 0,
+        "Practicing": 0,
+        "Reviewed": 0,
+        "Mastered": 0
+      }
+    },
+    {
+      "id": "M05",
+      "dir": "modules/05-deep-learning",
+      "title": "Deep Learning",
+      "title_zh": "深度学习",
+      "priority": "P0",
+      "hours": "50–70 h",
+      "chapters": 6,
+      "built": 0,
+      "learn": {
+        "Not Started": 6,
+        "Reading": 0,
+        "Practicing": 0,
+        "Reviewed": 0,
+        "Mastered": 0
+      }
+    },
+    {
+      "id": "M06",
+      "dir": "modules/06-advanced-ai",
+      "title": "Advanced AI Architectures",
+      "title_zh": "现代 AI 架构",
+      "priority": "P1",
+      "hours": "70–90 h",
+      "chapters": 6,
+      "built": 0,
+      "learn": {
+        "Not Started": 6,
+        "Reading": 0,
+        "Practicing": 0,
+        "Reviewed": 0,
+        "Mastered": 0
+      }
+    },
+    {
+      "id": "M07",
+      "dir": "modules/07-scientific-machine-learning",
+      "title": "Scientific Machine Learning",
+      "title_zh": "科学机器学习",
+      "priority": "P1",
+      "hours": "120 h 以上",
+      "chapters": 10,
+      "built": 0,
+      "learn": {
+        "Not Started": 10,
+        "Reading": 0,
+        "Practicing": 0,
+        "Reviewed": 0,
+        "Mastered": 0
+      }
+    },
+    {
+      "id": "M08",
+      "dir": "modules/08-semiconductor-data-science",
+      "title": "Semiconductor Manufacturing Data Science",
+      "title_zh": "半导体制造数据科学",
+      "priority": "Branch",
+      "hours": "40–60 h",
+      "chapters": 5,
+      "built": 0,
+      "learn": {
+        "Not Started": 5,
+        "Reading": 0,
+        "Practicing": 0,
+        "Reviewed": 0,
+        "Mastered": 0
+      }
+    },
+    {
+      "id": "M09",
+      "dir": "modules/09-ml-engineering-mlops",
+      "title": "ML Engineering and MLOps",
+      "title_zh": "ML 工程与 MLOps",
+      "priority": "P1/P2",
+      "hours": "30–40 h",
+      "chapters": 5,
+      "built": 0,
+      "learn": {
+        "Not Started": 5,
+        "Reading": 0,
+        "Practicing": 0,
+        "Reviewed": 0,
+        "Mastered": 0
+      }
+    },
+    {
+      "id": "M10",
+      "dir": "modules/10-llm-rag-agents",
+      "title": "LLM, RAG and Agents",
+      "title_zh": "大语言模型、RAG 与 Agent",
+      "priority": "P2",
+      "hours": "30–40 h",
+      "chapters": 5,
+      "built": 0,
+      "learn": {
+        "Not Started": 5,
+        "Reading": 0,
+        "Practicing": 0,
+        "Reviewed": 0,
+        "Mastered": 0
+      }
+    },
+    {
+      "id": "M11",
+      "dir": "modules/11-hpc-gpu-computing",
+      "title": "HPC and GPU Computing",
+      "title_zh": "高性能计算与 GPU",
+      "priority": "P1/P2",
+      "hours": "30–50 h",
+      "chapters": 4,
+      "built": 0,
+      "learn": {
+        "Not Started": 4,
+        "Reading": 0,
+        "Practicing": 0,
+        "Reviewed": 0,
+        "Mastered": 0
+      }
+    },
+    {
+      "id": "M12",
+      "dir": "modules/12-advanced-topics",
+      "title": "Advanced and Emerging Topics",
+      "title_zh": "进阶与前沿专题",
+      "priority": "P3",
+      "hours": "开放",
+      "chapters": 5,
+      "built": 0,
+      "learn": {
+        "Not Started": 5,
+        "Reading": 0,
+        "Practicing": 0,
+        "Reviewed": 0,
+        "Mastered": 0
+      }
+    }
+  ],
+  "chapters": [
+    {
+      "id": "M01.1",
+      "module": "M01",
+      "title": "Advanced Python",
+      "title_zh": "Python 进阶",
+      "priority": "P0",
+      "tags": [
+        "FT"
+      ],
+      "prereqs": [],
+      "anchors": [],
+      "note": "modules/01-cs-foundations/notes/01-advanced-python.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M01.2",
+      "module": "M01",
+      "title": "Data Structures and Algorithms for Scientific Computing",
+      "title_zh": "数据结构与算法（科学计算取向）",
+      "priority": "P0",
+      "tags": [],
+      "prereqs": [
+        "M01.1"
+      ],
+      "anchors": [],
+      "note": "modules/01-cs-foundations/notes/02-data-structures-algorithms.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M01.3",
+      "module": "M01",
+      "title": "Development Toolchain",
+      "title_zh": "开发工具链",
+      "priority": "P0",
+      "tags": [
+        "FT"
+      ],
+      "prereqs": [],
+      "anchors": [],
+      "note": "modules/01-cs-foundations/notes/03-dev-toolchain.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M01.4",
+      "module": "M01",
+      "title": "Computer Systems Basics",
+      "title_zh": "计算机系统基础",
+      "priority": "P1",
+      "tags": [],
+      "prereqs": [
+        "M01.1"
+      ],
+      "anchors": [],
+      "note": "modules/01-cs-foundations/notes/04-computer-systems.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M01.5",
+      "module": "M01",
+      "title": "High-Performance Scientific Python",
+      "title_zh": "高性能科学 Python",
+      "priority": "P0",
+      "tags": [],
+      "prereqs": [
+        "M01.1"
+      ],
+      "anchors": [],
+      "note": "modules/01-cs-foundations/notes/05-high-performance-python.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M02.1",
+      "module": "M02",
+      "title": "Linear Algebra",
+      "title_zh": "线性代数",
+      "priority": "P0",
+      "tags": [],
+      "prereqs": [],
+      "anchors": [
+        "A4"
+      ],
+      "note": "modules/02-mathematics-statistics/notes/01-linear-algebra.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M02.2",
+      "module": "M02",
+      "title": "Calculus and Matrix Calculus",
+      "title_zh": "微积分与矩阵微积分",
+      "priority": "P0",
+      "tags": [],
+      "prereqs": [
+        "M02.1"
+      ],
+      "anchors": [
+        "A1"
+      ],
+      "note": "modules/02-mathematics-statistics/notes/02-matrix-calculus.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M02.3",
+      "module": "M02",
+      "title": "Probability and Information Theory",
+      "title_zh": "概率论与信息论",
+      "priority": "P0",
+      "tags": [],
+      "prereqs": [
+        "M02.2"
+      ],
+      "anchors": [],
+      "note": "modules/02-mathematics-statistics/notes/03-probability-information.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M02.4",
+      "module": "M02",
+      "title": "Mathematical Statistics",
+      "title_zh": "数理统计",
+      "priority": "P0",
+      "tags": [],
+      "prereqs": [
+        "M02.3"
+      ],
+      "anchors": [],
+      "note": "modules/02-mathematics-statistics/notes/04-mathematical-statistics.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M02.5",
+      "module": "M02",
+      "title": "Optimization",
+      "title_zh": "最优化",
+      "priority": "P0",
+      "tags": [],
+      "prereqs": [
+        "M02.1",
+        "M02.2"
+      ],
+      "anchors": [],
+      "note": "modules/02-mathematics-statistics/notes/05-optimization.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M02.6",
+      "module": "M02",
+      "title": "Numerical Methods",
+      "title_zh": "数值方法",
+      "priority": "P0",
+      "tags": [],
+      "prereqs": [
+        "M02.1",
+        "M02.2"
+      ],
+      "anchors": [
+        "A1",
+        "A4"
+      ],
+      "note": "modules/02-mathematics-statistics/notes/06-numerical-methods.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M02.7",
+      "module": "M02",
+      "title": "Group Theory and Representation Theory",
+      "title_zh": "群论与表示论",
+      "priority": "P1",
+      "tags": [],
+      "prereqs": [
+        "M02.1"
+      ],
+      "anchors": [
+        "A6"
+      ],
+      "note": "modules/02-mathematics-statistics/notes/07-group-representation-theory.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M02.8",
+      "module": "M02",
+      "title": "Stochastic Processes and Sampling",
+      "title_zh": "随机过程与采样",
+      "priority": "P1",
+      "tags": [],
+      "prereqs": [
+        "M02.3",
+        "M02.6"
+      ],
+      "anchors": [
+        "A6"
+      ],
+      "note": "modules/02-mathematics-statistics/notes/08-stochastic-processes-sampling.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M03.1",
+      "module": "M03",
+      "title": "Data Acquisition and Storage",
+      "title_zh": "数据获取与存储",
+      "priority": "P0",
+      "tags": [],
+      "prereqs": [],
+      "anchors": [],
+      "note": "modules/03-data-science/notes/01-data-acquisition-storage.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M03.2",
+      "module": "M03",
+      "title": "Data Wrangling",
+      "title_zh": "数据处理",
+      "priority": "P0",
+      "tags": [
+        "FT"
+      ],
+      "prereqs": [
+        "M03.1"
+      ],
+      "anchors": [],
+      "note": "modules/03-data-science/notes/02-data-wrangling.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M03.3",
+      "module": "M03",
+      "title": "Exploratory Data Analysis and Visualization",
+      "title_zh": "探索性数据分析与可视化",
+      "priority": "P0",
+      "tags": [],
+      "prereqs": [
+        "M03.2",
+        "M02.3"
+      ],
+      "anchors": [],
+      "note": "modules/03-data-science/notes/03-eda-visualization.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M03.4",
+      "module": "M03",
+      "title": "Data Splitting, Leakage and Distribution Shift",
+      "title_zh": "数据划分、泄漏与分布偏移",
+      "priority": "P0",
+      "tags": [],
+      "prereqs": [
+        "M03.2",
+        "M04.1"
+      ],
+      "anchors": [
+        "A2"
+      ],
+      "note": "modules/03-data-science/notes/04-splitting-leakage-shift.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M03.5",
+      "module": "M03",
+      "title": "Time Series",
+      "title_zh": "时间序列",
+      "priority": "P1",
+      "tags": [],
+      "prereqs": [
+        "M03.2",
+        "M02.4"
+      ],
+      "anchors": [
+        "A5"
+      ],
+      "note": "modules/03-data-science/notes/05-time-series.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M03.6",
+      "module": "M03",
+      "title": "Design of Experiments",
+      "title_zh": "实验设计（DOE）",
+      "priority": "P1",
+      "tags": [],
+      "prereqs": [
+        "M02.4"
+      ],
+      "anchors": [],
+      "note": "modules/03-data-science/notes/06-design-of-experiments.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M04.1",
+      "module": "M04",
+      "title": "Statistical Learning Foundations",
+      "title_zh": "统计学习基础",
+      "priority": "P0",
+      "tags": [],
+      "prereqs": [
+        "M02.1",
+        "M02.3"
+      ],
+      "anchors": [],
+      "note": "modules/04-classical-machine-learning/notes/01-statistical-learning.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M04.2",
+      "module": "M04",
+      "title": "Linear Models",
+      "title_zh": "线性模型",
+      "priority": "P0",
+      "tags": [],
+      "prereqs": [
+        "M02.1",
+        "M02.2",
+        "M02.4"
+      ],
+      "anchors": [],
+      "note": "modules/04-classical-machine-learning/notes/02-linear-models.qmd",
+      "note_exists": true,
+      "build_status": "Draft",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M04.3",
+      "module": "M04",
+      "title": "Kernel Methods and Gaussian Processes",
+      "title_zh": "核方法与高斯过程",
+      "priority": "P0",
+      "tags": [],
+      "prereqs": [
+        "M04.2",
+        "M02.3"
+      ],
+      "anchors": [],
+      "note": "modules/04-classical-machine-learning/notes/03-kernels-gaussian-processes.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M04.4",
+      "module": "M04",
+      "title": "Trees and Ensemble Learning",
+      "title_zh": "树模型与集成学习",
+      "priority": "P0",
+      "tags": [],
+      "prereqs": [
+        "M04.1"
+      ],
+      "anchors": [],
+      "note": "modules/04-classical-machine-learning/notes/04-trees-ensembles.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M04.5",
+      "module": "M04",
+      "title": "Unsupervised Learning",
+      "title_zh": "无监督学习",
+      "priority": "P0",
+      "tags": [],
+      "prereqs": [
+        "M02.1",
+        "M02.3"
+      ],
+      "anchors": [],
+      "note": "modules/04-classical-machine-learning/notes/05-unsupervised-learning.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M04.6",
+      "module": "M04",
+      "title": "Anomaly Detection",
+      "title_zh": "异常检测",
+      "priority": "P1",
+      "tags": [],
+      "prereqs": [
+        "M04.4",
+        "M04.5"
+      ],
+      "anchors": [],
+      "note": "modules/04-classical-machine-learning/notes/06-anomaly-detection.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M04.7",
+      "module": "M04",
+      "title": "Model Evaluation and Interpretation",
+      "title_zh": "模型评价与解释",
+      "priority": "P0",
+      "tags": [],
+      "prereqs": [
+        "M04.1",
+        "M04.2"
+      ],
+      "anchors": [
+        "A3"
+      ],
+      "note": "modules/04-classical-machine-learning/notes/07-evaluation-interpretation.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M04.8",
+      "module": "M04",
+      "title": "ML Research Methodology",
+      "title_zh": "ML 研究方法论",
+      "priority": "P0",
+      "tags": [],
+      "prereqs": [
+        "M04.7",
+        "M02.4"
+      ],
+      "anchors": [
+        "A3"
+      ],
+      "note": "modules/04-classical-machine-learning/notes/08-research-methodology.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M05.1",
+      "module": "M05",
+      "title": "Neural Network Fundamentals",
+      "title_zh": "神经网络基础",
+      "priority": "P0",
+      "tags": [],
+      "prereqs": [
+        "M02.2",
+        "M04.2"
+      ],
+      "anchors": [],
+      "note": "modules/05-deep-learning/notes/01-neural-network-fundamentals.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M05.2",
+      "module": "M05",
+      "title": "Automatic Differentiation",
+      "title_zh": "自动微分",
+      "priority": "P0",
+      "tags": [],
+      "prereqs": [
+        "M02.2",
+        "M05.1"
+      ],
+      "anchors": [
+        "A1"
+      ],
+      "note": "modules/05-deep-learning/notes/02-automatic-differentiation.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M05.3",
+      "module": "M05",
+      "title": "PyTorch Engineering Basics",
+      "title_zh": "PyTorch 工程基础",
+      "priority": "P0",
+      "tags": [
+        "FT"
+      ],
+      "prereqs": [
+        "M01.1",
+        "M05.1"
+      ],
+      "anchors": [],
+      "note": "modules/05-deep-learning/notes/03-pytorch-engineering.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M05.4",
+      "module": "M05",
+      "title": "Training and Optimization Techniques",
+      "title_zh": "训练与优化技巧",
+      "priority": "P0",
+      "tags": [],
+      "prereqs": [
+        "M05.3",
+        "M02.5"
+      ],
+      "anchors": [],
+      "note": "modules/05-deep-learning/notes/04-training-techniques.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M05.5",
+      "module": "M05",
+      "title": "Convolutional Networks and Vision",
+      "title_zh": "卷积网络与视觉",
+      "priority": "P1",
+      "tags": [],
+      "prereqs": [
+        "M05.4"
+      ],
+      "anchors": [],
+      "note": "modules/05-deep-learning/notes/05-convolutional-networks.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M05.6",
+      "module": "M05",
+      "title": "Sequence Models",
+      "title_zh": "序列模型",
+      "priority": "P2",
+      "tags": [],
+      "prereqs": [
+        "M05.4"
+      ],
+      "anchors": [],
+      "note": "modules/05-deep-learning/notes/06-sequence-models.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M06.1",
+      "module": "M06",
+      "title": "Attention and Transformer",
+      "title_zh": "Attention 与 Transformer",
+      "priority": "P1",
+      "tags": [],
+      "prereqs": [
+        "M05.4"
+      ],
+      "anchors": [],
+      "note": "modules/06-advanced-ai/notes/01-attention-transformer.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M06.2",
+      "module": "M06",
+      "title": "Graph Neural Network Basics",
+      "title_zh": "图神经网络基础",
+      "priority": "P1",
+      "tags": [],
+      "prereqs": [
+        "M05.4"
+      ],
+      "anchors": [],
+      "note": "modules/06-advanced-ai/notes/02-graph-neural-networks.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M06.3",
+      "module": "M06",
+      "title": "Geometric and Equivariant Deep Learning",
+      "title_zh": "几何与等变深度学习",
+      "priority": "P1",
+      "tags": [],
+      "prereqs": [
+        "M02.7",
+        "M06.2"
+      ],
+      "anchors": [],
+      "note": "modules/06-advanced-ai/notes/03-equivariant-deep-learning.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M06.4",
+      "module": "M06",
+      "title": "Generative Models",
+      "title_zh": "生成模型",
+      "priority": "P1",
+      "tags": [],
+      "prereqs": [
+        "M02.3",
+        "M02.8",
+        "M05.4"
+      ],
+      "anchors": [
+        "A6"
+      ],
+      "note": "modules/06-advanced-ai/notes/04-generative-models.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M06.5",
+      "module": "M06",
+      "title": "Uncertainty Quantification, Active Learning and Bayesian Optimization",
+      "title_zh": "不确定性量化、主动学习与贝叶斯优化",
+      "priority": "P1",
+      "tags": [],
+      "prereqs": [
+        "M04.3",
+        "M04.7",
+        "M05.4"
+      ],
+      "anchors": [
+        "A2"
+      ],
+      "note": "modules/06-advanced-ai/notes/05-uq-active-learning-bo.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M06.6",
+      "module": "M06",
+      "title": "Representation Learning and Transfer",
+      "title_zh": "表征学习与迁移",
+      "priority": "P2",
+      "tags": [],
+      "prereqs": [
+        "M05.4"
+      ],
+      "anchors": [],
+      "note": "modules/06-advanced-ai/notes/06-representation-learning.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M07.1",
+      "module": "M07",
+      "title": "AI for Science Methodology",
+      "title_zh": "AI for Science 方法论",
+      "priority": "P1",
+      "tags": [],
+      "prereqs": [
+        "M04.8"
+      ],
+      "anchors": [],
+      "note": "modules/07-scientific-machine-learning/notes/01-ai4science-methodology.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M07.2",
+      "module": "M07",
+      "title": "Atomic Environment Representations",
+      "title_zh": "原子环境表示",
+      "priority": "P1",
+      "tags": [],
+      "prereqs": [
+        "M02.7",
+        "M04.3"
+      ],
+      "anchors": [],
+      "note": "modules/07-scientific-machine-learning/notes/02-atomic-environment-representations.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M07.3",
+      "module": "M07",
+      "title": "Machine Learning Interatomic Potentials: Training and Validation",
+      "title_zh": "机器学习势：训练与验证",
+      "priority": "P1",
+      "tags": [
+        "FT"
+      ],
+      "prereqs": [
+        "M03.4",
+        "M05.2",
+        "M06.3"
+      ],
+      "anchors": [
+        "A1",
+        "A2",
+        "A3"
+      ],
+      "note": "modules/07-scientific-machine-learning/notes/03-mlip-training-validation.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M07.4",
+      "module": "M07",
+      "title": "Universal Potentials and Materials Foundation Models",
+      "title_zh": "通用势与材料基础模型",
+      "priority": "P1",
+      "tags": [],
+      "prereqs": [
+        "M07.3",
+        "M06.5"
+      ],
+      "anchors": [
+        "A2"
+      ],
+      "note": "modules/07-scientific-machine-learning/notes/04-universal-potentials.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M07.5",
+      "module": "M07",
+      "title": "Machine Learning for Electronic Structure",
+      "title_zh": "电子结构机器学习",
+      "priority": "P1",
+      "tags": [],
+      "prereqs": [
+        "M02.6",
+        "M06.3"
+      ],
+      "anchors": [
+        "A4",
+        "A6"
+      ],
+      "note": "modules/07-scientific-machine-learning/notes/05-electronic-structure-ml.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M07.6",
+      "module": "M07",
+      "title": "Generative Models for Crystals and Materials",
+      "title_zh": "晶体与材料生成模型",
+      "priority": "P1",
+      "tags": [],
+      "prereqs": [
+        "M06.3",
+        "M06.4"
+      ],
+      "anchors": [
+        "A6"
+      ],
+      "note": "modules/07-scientific-machine-learning/notes/06-crystal-generative-models.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M07.7",
+      "module": "M07",
+      "title": "Physics-Informed Learning",
+      "title_zh": "物理信息学习",
+      "priority": "P2",
+      "tags": [],
+      "prereqs": [
+        "M02.6",
+        "M05.2"
+      ],
+      "anchors": [],
+      "note": "modules/07-scientific-machine-learning/notes/07-physics-informed-learning.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M07.8",
+      "module": "M07",
+      "title": "Neural Operators",
+      "title_zh": "神经算子",
+      "priority": "P2",
+      "tags": [],
+      "prereqs": [
+        "M02.6",
+        "M05.4"
+      ],
+      "anchors": [
+        "A8"
+      ],
+      "note": "modules/07-scientific-machine-learning/notes/08-neural-operators.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M07.9",
+      "module": "M07",
+      "title": "Multiscale Modeling, Differentiable Simulation and Inverse Design",
+      "title_zh": "多尺度、可微分模拟与逆向设计",
+      "priority": "P2",
+      "tags": [],
+      "prereqs": [
+        "M05.2",
+        "M07.3"
+      ],
+      "anchors": [
+        "A8"
+      ],
+      "note": "modules/07-scientific-machine-learning/notes/09-multiscale-differentiable-simulation.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M07.10",
+      "module": "M07",
+      "title": "AI in Device Simulation",
+      "title_zh": "器件仿真中的 AI",
+      "priority": "P2",
+      "tags": [],
+      "prereqs": [
+        "M07.8"
+      ],
+      "anchors": [
+        "A8"
+      ],
+      "note": "modules/07-scientific-machine-learning/notes/10-ai-device-simulation.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M08.1",
+      "module": "M08",
+      "title": "Semiconductor Manufacturing Data",
+      "title_zh": "半导体制造数据",
+      "priority": "Branch",
+      "tags": [],
+      "prereqs": [],
+      "anchors": [],
+      "note": "modules/08-semiconductor-data-science/notes/01-manufacturing-data.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M08.2",
+      "module": "M08",
+      "title": "Process Monitoring",
+      "title_zh": "过程监控",
+      "priority": "Branch",
+      "tags": [],
+      "prereqs": [
+        "M02.4",
+        "M04.5"
+      ],
+      "anchors": [],
+      "note": "modules/08-semiconductor-data-science/notes/02-process-monitoring.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M08.3",
+      "module": "M08",
+      "title": "Yield and Defect Analysis",
+      "title_zh": "良率与缺陷分析",
+      "priority": "Branch",
+      "tags": [],
+      "prereqs": [
+        "M04.7",
+        "M05.5"
+      ],
+      "anchors": [],
+      "note": "modules/08-semiconductor-data-science/notes/03-yield-defect-analysis.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M08.4",
+      "module": "M08",
+      "title": "Virtual Metrology",
+      "title_zh": "虚拟量测",
+      "priority": "Branch",
+      "tags": [],
+      "prereqs": [
+        "M03.5",
+        "M04.4"
+      ],
+      "anchors": [],
+      "note": "modules/08-semiconductor-data-science/notes/04-virtual-metrology.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M08.5",
+      "module": "M08",
+      "title": "Reliability and Optimization",
+      "title_zh": "可靠性与优化",
+      "priority": "Branch",
+      "tags": [],
+      "prereqs": [
+        "M02.4",
+        "M03.6"
+      ],
+      "anchors": [
+        "A5"
+      ],
+      "note": "modules/08-semiconductor-data-science/notes/05-reliability-optimization.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M09.1",
+      "module": "M09",
+      "title": "Engineering AI Projects",
+      "title_zh": "AI 项目工程化",
+      "priority": "P1",
+      "tags": [],
+      "prereqs": [
+        "M01.3"
+      ],
+      "anchors": [],
+      "note": "modules/09-ml-engineering-mlops/notes/01-project-engineering.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M09.2",
+      "module": "M09",
+      "title": "Experiment Management and Reproducibility",
+      "title_zh": "实验管理与可复现性",
+      "priority": "P1",
+      "tags": [],
+      "prereqs": [
+        "M09.1"
+      ],
+      "anchors": [],
+      "note": "modules/09-ml-engineering-mlops/notes/02-experiment-management.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M09.3",
+      "module": "M09",
+      "title": "Scientific Workflow Orchestration",
+      "title_zh": "科学计算工作流编排",
+      "priority": "P2",
+      "tags": [],
+      "prereqs": [
+        "M09.1"
+      ],
+      "anchors": [],
+      "note": "modules/09-ml-engineering-mlops/notes/03-workflow-orchestration.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M09.4",
+      "module": "M09",
+      "title": "Model Deployment and Inference",
+      "title_zh": "模型部署与推理",
+      "priority": "P2",
+      "tags": [],
+      "prereqs": [
+        "M05.3"
+      ],
+      "anchors": [],
+      "note": "modules/09-ml-engineering-mlops/notes/04-deployment-inference.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M09.5",
+      "module": "M09",
+      "title": "Machine Learning in Production",
+      "title_zh": "生产环境 ML",
+      "priority": "P3",
+      "tags": [],
+      "prereqs": [
+        "M09.2",
+        "M03.4"
+      ],
+      "anchors": [],
+      "note": "modules/09-ml-engineering-mlops/notes/05-production-ml.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M10.1",
+      "module": "M10",
+      "title": "Large Language Model Principles",
+      "title_zh": "大语言模型原理",
+      "priority": "P2",
+      "tags": [],
+      "prereqs": [
+        "M06.1"
+      ],
+      "anchors": [],
+      "note": "modules/10-llm-rag-agents/notes/01-llm-principles.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M10.2",
+      "module": "M10",
+      "title": "Retrieval-Augmented Generation",
+      "title_zh": "检索增强生成",
+      "priority": "P2",
+      "tags": [],
+      "prereqs": [
+        "M10.1"
+      ],
+      "anchors": [],
+      "note": "modules/10-llm-rag-agents/notes/02-retrieval-augmented-generation.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M10.3",
+      "module": "M10",
+      "title": "Agent Systems",
+      "title_zh": "Agent 系统",
+      "priority": "P2",
+      "tags": [],
+      "prereqs": [
+        "M10.1"
+      ],
+      "anchors": [],
+      "note": "modules/10-llm-rag-agents/notes/03-agent-systems.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M10.4",
+      "module": "M10",
+      "title": "Scientific Agents",
+      "title_zh": "科学 Agent",
+      "priority": "P2",
+      "tags": [],
+      "prereqs": [
+        "M10.3"
+      ],
+      "anchors": [],
+      "note": "modules/10-llm-rag-agents/notes/04-scientific-agents.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M10.5",
+      "module": "M10",
+      "title": "Working Effectively with Coding Agents",
+      "title_zh": "高效使用编码 Agent",
+      "priority": "P1",
+      "tags": [],
+      "prereqs": [],
+      "anchors": [],
+      "note": "modules/10-llm-rag-agents/notes/05-coding-agents.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M11.1",
+      "module": "M11",
+      "title": "Parallel Computing Basics and Performance Analysis",
+      "title_zh": "并行计算基础与性能分析",
+      "priority": "P1",
+      "tags": [],
+      "prereqs": [
+        "M01.4"
+      ],
+      "anchors": [
+        "A7"
+      ],
+      "note": "modules/11-hpc-gpu-computing/notes/01-parallel-computing-performance.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M11.2",
+      "module": "M11",
+      "title": "GPU Programming",
+      "title_zh": "GPU 编程",
+      "priority": "P2",
+      "tags": [],
+      "prereqs": [
+        "M11.1",
+        "M05.3"
+      ],
+      "anchors": [],
+      "note": "modules/11-hpc-gpu-computing/notes/02-gpu-programming.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M11.3",
+      "module": "M11",
+      "title": "Distributed and Multi-GPU Training",
+      "title_zh": "分布式与多 GPU 训练",
+      "priority": "P2",
+      "tags": [],
+      "prereqs": [
+        "M11.2"
+      ],
+      "anchors": [],
+      "note": "modules/11-hpc-gpu-computing/notes/03-distributed-training.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M11.4",
+      "module": "M11",
+      "title": "Cluster Workflows",
+      "title_zh": "集群工作流",
+      "priority": "P1",
+      "tags": [
+        "FT"
+      ],
+      "prereqs": [
+        "M01.3"
+      ],
+      "anchors": [],
+      "note": "modules/11-hpc-gpu-computing/notes/04-cluster-workflows.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M12.1",
+      "module": "M12",
+      "title": "Causal Machine Learning",
+      "title_zh": "因果机器学习",
+      "priority": "P3",
+      "tags": [],
+      "prereqs": [
+        "M02.4"
+      ],
+      "anchors": [],
+      "note": "modules/12-advanced-topics/notes/01-causal-ml.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M12.2",
+      "module": "M12",
+      "title": "Reinforcement Learning",
+      "title_zh": "强化学习",
+      "priority": "P3",
+      "tags": [],
+      "prereqs": [
+        "M05.4"
+      ],
+      "anchors": [],
+      "note": "modules/12-advanced-topics/notes/02-reinforcement-learning.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M12.3",
+      "module": "M12",
+      "title": "Probabilistic Machine Learning",
+      "title_zh": "概率机器学习",
+      "priority": "P3",
+      "tags": [],
+      "prereqs": [
+        "M02.3",
+        "M06.5"
+      ],
+      "anchors": [],
+      "note": "modules/12-advanced-topics/notes/03-probabilistic-ml.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M12.4",
+      "module": "M12",
+      "title": "Machine Learning Systems",
+      "title_zh": "机器学习系统",
+      "priority": "P3",
+      "tags": [],
+      "prereqs": [
+        "M11.1"
+      ],
+      "anchors": [],
+      "note": "modules/12-advanced-topics/notes/04-ml-systems.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    },
+    {
+      "id": "M12.5",
+      "module": "M12",
+      "title": "AI Hardware and Analog In-Memory Computing",
+      "title_zh": "AI 硬件与模拟存内计算",
+      "priority": "P2",
+      "tags": [],
+      "prereqs": [
+        "M05.4"
+      ],
+      "anchors": [
+        "A7"
+      ],
+      "note": "modules/12-advanced-topics/notes/05-ai-hardware-in-memory-computing.qmd",
+      "note_exists": false,
+      "build_status": "Planned",
+      "learn_status": "Not Started",
+      "evidence_count": 0,
+      "next_review": null
+    }
+  ],
+  "open_annotations": [],
+  "last_test": null
+}

@@ -1,0 +1,878 @@
+# 课程结构与建设状态的唯一维护位置（PROJECT_BLUEPRINT.md 第 11.1 节）。
+#
+# - 这里只记录课程结构（模块、章节、优先级、先修、锚点）和建设状态 build_status。
+# - 学习状态、掌握证据、复测日期记录在各讲义的 frontmatter 中，归学习者所有。
+# - 修改本文件后运行 `make sync`，由脚本重新生成 CURRICULUM.md、各模块 README 的章节表、
+#   progress/ 下的清单与 status.json。
+#
+# 字段说明
+#   priority      P0 | P1 | P2 | P3 | Branch
+#   tags          [FT] 表示 Fast-track 候选：诊断通过即可跳过正文，只做练习验证
+#   prereqs       章节级先修。蓝图明文规定的先修见各章注释，其余为建设时的建议，诊断后可调整
+#   anchors       研究锚点，取自蓝图第 3.2 节的对应表
+#   note          讲义路径，相对于模块目录；文件在该章建设时才创建
+#   build_status  Planned | Draft | Reviewed | Verified
+#   scope         本章覆盖的内容范围，取自蓝图第 3.4 节
+
+version: 1
+
+anchors:
+  A1: 力与应力如何由能量模型通过自动微分得到；为什么某些势在 NVE 中能量不守恒
+  A2: 主动学习为什么会失效：探索器与目标构型分布不匹配、不确定性估计不准、标注设置不一致
+  A3: 为什么“低 RMSE ≠ 可用的势”：如何设计分层评价体系
+  A4: 大尺度无序体系的电子结构：带尾、局域化与大规模稀疏矩阵的数值方法
+  A5: 老化轨迹的时间序列分析：对数时间采样、漂移、变化点
+  A6: 晶体生成与电荷密度预测：扩散模型如何处理周期性与对称性，如何评价生成质量
+  A7: 用 PCM 器件电导态表示神经网络权重：量化、噪声与漂移对模型的影响
+  A8: 跨尺度传递：从 MLMD 热物性到连续介质电热仿真，再到代理模型与不确定性传播
+
+modules:
+  # ---------------------------------------------------------------------------
+  - id: M01
+    dir: modules/01-cs-foundations
+    title: Computer Science Foundations
+    title_zh: 计算机基础
+    priority: P0
+    hours: 30–45 h
+    anchors: [A4]
+    chapters:
+      - id: M01.1
+        title: Advanced Python
+        title_zh: Python 进阶
+        priority: P0
+        tags: [FT]
+        prereqs: []
+        anchors: []
+        note: notes/01-advanced-python.qmd
+        build_status: Planned
+        scope: 数据模型与 Pythonic 写法；迭代器、生成器与惰性计算；装饰器与闭包；上下文管理器；dataclass 与类型注解；包、模块与导入机制；异常设计；科学数据序列化（JSON、HDF5、extxyz）及 pickle 的安全与兼容性问题。
+      - id: M01.2
+        title: Data Structures and Algorithms for Scientific Computing
+        title_zh: 数据结构与算法（科学计算取向）
+        priority: P0
+        tags: []
+        prereqs: [M01.1]
+        anchors: []
+        note: notes/02-data-structures-algorithms.qmd
+        build_status: Planned
+        scope: 时间与空间复杂度；数组、哈希表、堆、树、图；排序与搜索；递归、分治、动态规划与贪心基础。领域例题：周期性边界条件下的最小镜像约定；cell list 与 KD-tree 邻居搜索；用连通分量与最短路计算键网络的团簇与环统计。面试刷题部分为 P2。
+      - id: M01.3
+        title: Development Toolchain
+        title_zh: 开发工具链
+        priority: P0
+        tags: [FT]
+        prereqs: []
+        anchors: []
+        note: notes/03-dev-toolchain.qmd
+        build_status: Planned
+        scope: Linux 与 Shell 脚本；Git 进阶（分支策略、rebase、bisect、冲突处理）；环境与依赖管理（uv、conda）；调试（pdb、IDE 调试器）；日志；pytest；ruff；pre-commit。FT 仅适用于部分内容。
+      - id: M01.4
+        title: Computer Systems Basics
+        title_zh: 计算机系统基础
+        priority: P1
+        tags: []
+        prereqs: [M01.1]
+        anchors: []
+        note: notes/04-computer-systems.qmd
+        build_status: Planned
+        scope: 存储层次与缓存局部性；进程、线程与 GIL；并发与 multiprocessing；I/O 瓶颈；IEEE 754 浮点表示与舍入误差；网络与 HTTP/API 基础（P2）。
+      - id: M01.5
+        title: High-Performance Scientific Python
+        title_zh: 高性能科学 Python
+        priority: P0
+        tags: []
+        prereqs: [M01.1]
+        anchors: []
+        note: notes/05-high-performance-python.qmd
+        build_status: Planned
+        scope: NumPy 内存布局与 strides；广播与向量化；einsum；避免隐式拷贝；cProfile、line_profiler 性能分析；Numba 入门。
+
+  # ---------------------------------------------------------------------------
+  - id: M02
+    dir: modules/02-mathematics-statistics
+    title: Mathematics, Statistics and Optimization
+    title_zh: 数学、统计与最优化
+    priority: P0/P1
+    hours: 90–120 h
+    anchors: [A1, A4, A6]
+    chapters:
+      - id: M02.1
+        title: Linear Algebra
+        title_zh: 线性代数
+        priority: P0
+        tags: []
+        prereqs: []
+        anchors: [A4]
+        note: notes/01-linear-algebra.qmd
+        build_status: Planned
+        scope: 向量空间、子空间与正交投影；特征分解；SVD 与低秩近似；PCA 的两种推导（最大方差与最小重构误差）；正定矩阵；矩阵范数与条件数。
+      - id: M02.2
+        title: Calculus and Matrix Calculus
+        title_zh: 微积分与矩阵微积分
+        priority: P0
+        tags: []
+        prereqs: [M02.1]
+        anchors: [A1]
+        note: notes/02-matrix-calculus.qmd
+        build_status: Planned
+        scope: 梯度、Jacobian、Hessian；矩阵形式的链式法则；常用矩阵求导结果；Taylor 展开；Lagrange 乘子。
+      - id: M02.3
+        title: Probability and Information Theory
+        title_zh: 概率论与信息论
+        priority: P0
+        tags: []
+        prereqs: [M02.2]
+        anchors: []
+        note: notes/03-probability-information.qmd
+        build_status: Planned
+        scope: 随机变量与分布；条件概率与贝叶斯定理；多元高斯分布的边缘与条件分布（高斯过程的基础）；期望、方差、协方差；变量变换公式（normalizing flow 的基础）；熵、交叉熵、KL 散度、互信息。
+      - id: M02.4
+        title: Mathematical Statistics
+        title_zh: 数理统计
+        priority: P0
+        tags: []
+        prereqs: [M02.3]
+        anchors: []
+        note: notes/04-mathematical-statistics.qmd
+        build_status: Planned
+        scope: 点估计、MLE、MAP；估计量的偏差与方差；置信区间；假设检验与多重比较校正；Bootstrap；贝叶斯推断入门。
+      - id: M02.5
+        title: Optimization
+        title_zh: 最优化
+        priority: P0
+        tags: []
+        prereqs: [M02.1, M02.2]
+        anchors: []
+        note: notes/05-optimization.qmd
+        build_status: Planned
+        scope: 凸集与凸函数；梯度下降与 SGD 的收敛直觉；Momentum、Adam、AdamW；二阶与拟牛顿方法（L-BFGS，及其在结构优化中的应用）；约束优化与 KKT 条件。贝叶斯优化归属 M06.5。
+      - id: M02.6
+        title: Numerical Methods
+        title_zh: 数值方法
+        priority: P0
+        tags: []
+        prereqs: [M02.1, M02.2]
+        anchors: [A1, A4]
+        note: notes/06-numerical-methods.qmd
+        build_status: Planned
+        scope: 浮点误差、条件数与数值稳定性；线性方程组（LU、Cholesky、共轭梯度）；稀疏矩阵存储与运算；迭代特征值算法（幂迭代、Lanczos）；插值与数值积分；ODE 积分器（Euler、Runge–Kutta、Verlet 与辛积分的能量守恒性质）；PDE 离散入门（有限差分、有限元的基本思想）。
+      - id: M02.7
+        title: Group Theory and Representation Theory
+        title_zh: 群论与表示论
+        priority: P1
+        tags: []
+        prereqs: [M02.1]
+        anchors: [A6]
+        note: notes/07-group-representation-theory.qmd
+        build_status: Planned
+        scope: 群、子群、陪集；对称群、SO(3)、O(3)、E(3)；群表示与不可约表示；球谐函数；Wigner-D 矩阵；张量积与 Clebsch–Gordan 分解；晶体点群与空间群简介。本章是 M06.3 的直接前置。
+      - id: M02.8
+        title: Stochastic Processes and Sampling
+        title_zh: 随机过程与采样
+        priority: P1
+        tags: []
+        prereqs: [M02.3, M02.6]
+        anchors: [A6]
+        note: notes/08-stochastic-processes-sampling.qmd
+        build_status: Planned
+        scope: Markov 链与平稳分布；MCMC（Metropolis–Hastings）；Langevin 动力学与 Fokker–Planck 方程；随机微分方程入门；重要性采样。本章是连接分子动力学采样与扩散模型（M06.4）的桥梁。
+
+  # ---------------------------------------------------------------------------
+  - id: M03
+    dir: modules/03-data-science
+    title: Data Science
+    title_zh: 数据科学
+    priority: P0
+    hours: 30–40 h
+    anchors: [A2, A5]
+    chapters:
+      - id: M03.1
+        title: Data Acquisition and Storage
+        title_zh: 数据获取与存储
+        priority: P0
+        tags: []
+        prereqs: []
+        anchors: []
+        note: notes/01-data-acquisition-storage.qmd
+        build_status: Planned
+        scope: CSV、JSON、HDF5、Parquet；原子结构数据格式（extxyz、ASE database、LMDB）；SQL（SELECT、JOIN、GROUP BY、窗口函数）；数据库基础（P1）。
+      - id: M03.2
+        title: Data Wrangling
+        title_zh: 数据处理
+        priority: P0
+        tags: [FT]
+        prereqs: [M03.1]
+        anchors: []
+        note: notes/02-data-wrangling.qmd
+        build_status: Planned
+        scope: pandas 核心操作与性能；tidy data；缺失值与异常值；缩放与编码。FT 仅适用于部分内容。
+      - id: M03.3
+        title: Exploratory Data Analysis and Visualization
+        title_zh: 探索性数据分析与可视化
+        priority: P0
+        tags: []
+        prereqs: [M03.2, M02.3]
+        anchors: []
+        note: notes/03-eda-visualization.qmd
+        build_status: Planned
+        scope: 描述性统计；分布分析；Pearson、Spearman 相关与互信息；可视化原则与常见误导；降维可视化（算法细节归属 M04.5）。
+      - id: M03.4
+        title: Data Splitting, Leakage and Distribution Shift
+        title_zh: 数据划分、泄漏与分布偏移
+        priority: P0
+        tags: []
+        prereqs: [M03.2, M04.1]
+        anchors: [A2]
+        note: notes/04-splitting-leakage-shift.qmd
+        build_status: Planned
+        scope: 随机划分、分组划分、时间划分、结构相似性划分；MD 轨迹相邻帧高度相关导致的泄漏；协变量偏移、标签偏移、概念偏移；训练集与部署分布不一致的诊断方法。泄漏问题的主要归属章节。
+      - id: M03.5
+        title: Time Series
+        title_zh: 时间序列
+        priority: P1
+        tags: []
+        prereqs: [M03.2, M02.4]
+        anchors: [A5]
+        note: notes/05-time-series.qmd
+        build_status: Planned
+        scope: 平稳性与自相关；滑动窗口特征；趋势与季节性；变化点检测；非均匀与对数时间采样下的分析方法。
+      - id: M03.6
+        title: Design of Experiments
+        title_zh: 实验设计（DOE）
+        priority: P1
+        tags: []
+        prereqs: [M02.4]
+        anchors: []
+        note: notes/06-design-of-experiments.qmd
+        build_status: Planned
+        scope: 因子设计与部分因子设计；响应面方法；拉丁超立方采样；DOE 与主动学习、贝叶斯优化的关系。DOE 的主要归属章节。
+
+  # ---------------------------------------------------------------------------
+  - id: M04
+    dir: modules/04-classical-machine-learning
+    title: Classical Machine Learning
+    title_zh: 传统机器学习
+    priority: P0
+    hours: 60–80 h
+    anchors: [A3]
+    chapters:
+      - id: M04.1
+        title: Statistical Learning Foundations
+        title_zh: 统计学习基础
+        priority: P0
+        tags: []
+        prereqs: [M02.1, M02.3]
+        anchors: []
+        note: notes/01-statistical-learning.qmd
+        build_status: Planned
+        scope: 经验风险最小化；偏差–方差分解；过拟合与欠拟合；模型复杂度与泛化的直觉；正则化；No Free Lunch。
+      - id: M04.2
+        title: Linear Models
+        title_zh: 线性模型
+        priority: P0
+        tags: []
+        prereqs: [M02.1, M02.2, M02.4]   # 蓝图第 11.1 节明文规定
+        anchors: []
+        note: notes/02-linear-models.qmd
+        build_status: Draft
+        scope: 最小二乘的几何视角与概率视角；Ridge、Lasso、Elastic Net；Logistic Regression；广义线性模型。
+      - id: M04.3
+        title: Kernel Methods and Gaussian Processes
+        title_zh: 核方法与高斯过程
+        priority: P0
+        tags: []
+        prereqs: [M04.2, M02.3]
+        anchors: []
+        note: notes/03-kernels-gaussian-processes.qmd
+        build_status: Planned
+        scope: 核技巧与再生核的直觉；核岭回归；SVM；高斯过程回归（后验推导、超参数学习、计算复杂度）；与 SOAP-GAP 类 MLIP 的联系。高斯过程的主要归属章节。
+      - id: M04.4
+        title: Trees and Ensemble Learning
+        title_zh: 树模型与集成学习
+        priority: P0
+        tags: []
+        prereqs: [M04.1]
+        anchors: []
+        note: notes/04-trees-ensembles.qmd
+        build_status: Planned
+        scope: 决策树；Bagging 与随机森林；Gradient Boosting；XGBoost、LightGBM 的工程优化。
+      - id: M04.5
+        title: Unsupervised Learning
+        title_zh: 无监督学习
+        priority: P0
+        tags: []
+        prereqs: [M02.1, M02.3]
+        anchors: []
+        note: notes/05-unsupervised-learning.qmd
+        build_status: Planned
+        scope: K-means；GMM 与 EM 算法；层次聚类；DBSCAN；PCA、t-SNE、UMAP 及其可视化陷阱。
+      - id: M04.6
+        title: Anomaly Detection
+        title_zh: 异常检测
+        priority: P1
+        tags: []
+        prereqs: [M04.4, M04.5]
+        anchors: []
+        note: notes/06-anomaly-detection.qmd
+        build_status: Planned
+        scope: 统计方法（Z-score、IQR）；Isolation Forest；One-Class SVM；LOF；异常检测的评价难点。
+      - id: M04.7
+        title: Model Evaluation and Interpretation
+        title_zh: 模型评价与解释
+        priority: P0
+        tags: []
+        prereqs: [M04.1, M04.2]
+        anchors: [A3]
+        note: notes/07-evaluation-interpretation.qmd
+        build_status: Planned
+        scope: 回归与分类指标；交叉验证的多种形式；超参数搜索；概率校准；特征重要性；SHAP 及其局限。不确定性量化归属 M06.5。
+      - id: M04.8
+        title: ML Research Methodology
+        title_zh: ML 研究方法论
+        priority: P0
+        tags: []
+        prereqs: [M04.7, M02.4]
+        anchors: [A3]
+        note: notes/08-research-methodology.qmd
+        build_status: Planned
+        scope: 基线选择；消融实验；多随机种子与置信区间；模型间的统计显著性比较；benchmark 设计与“刷榜”问题；代理指标与最终目标不一致的问题（如“低 RMSE ≠ 可用的势”）；如何阅读与复现论文。研究者必修。
+
+  # ---------------------------------------------------------------------------
+  - id: M05
+    dir: modules/05-deep-learning
+    title: Deep Learning
+    title_zh: 深度学习
+    priority: P0
+    hours: 50–70 h
+    anchors: [A1]
+    chapters:
+      - id: M05.1
+        title: Neural Network Fundamentals
+        title_zh: 神经网络基础
+        priority: P0
+        tags: []
+        prereqs: [M02.2, M04.2]
+        anchors: []
+        note: notes/01-neural-network-fundamentals.qmd
+        build_status: Planned
+        scope: 感知机与 MLP；激活函数；损失函数与最大似然的关系；反向传播；梯度消失与爆炸；初始化。
+      - id: M05.2
+        title: Automatic Differentiation
+        title_zh: 自动微分
+        priority: P0
+        tags: []
+        prereqs: [M02.2, M05.1]
+        anchors: [A1]
+        note: notes/02-automatic-differentiation.qmd
+        build_status: Planned
+        scope: 计算图；前向模式与反向模式；向量–Jacobian 积与 Jacobian–向量积；高阶导数与 create_graph；力作为能量的负梯度、应力作为能量对应变的导数；JAX 的函数式自动微分简介（P2）。自动微分的主要归属章节。
+      - id: M05.3
+        title: PyTorch Engineering Basics
+        title_zh: PyTorch 工程基础
+        priority: P0
+        tags: [FT]
+        prereqs: [M01.1, M05.1]
+        anchors: []
+        note: notes/03-pytorch-engineering.qmd
+        build_status: Planned
+        scope: Tensor 与设备管理；nn.Module；Dataset 与 DataLoader；手写训练循环；checkpoint 与断点续训；随机种子与确定性。FT 仅适用于部分内容。
+      - id: M05.4
+        title: Training and Optimization Techniques
+        title_zh: 训练与优化技巧
+        priority: P0
+        tags: []
+        prereqs: [M05.3, M02.5]
+        anchors: []
+        note: notes/04-training-techniques.qmd
+        build_status: Planned
+        scope: 优化器与学习率调度；归一化层；正则化与 Dropout；混合精度；梯度裁剪；参数 EMA；训练调试清单（loss 不下降、NaN、过拟合的排查顺序）。
+      - id: M05.5
+        title: Convolutional Networks and Vision
+        title_zh: 卷积网络与视觉
+        priority: P1
+        tags: []
+        prereqs: [M05.4]
+        anchors: []
+        note: notes/05-convolutional-networks.qmd
+        build_status: Planned
+        scope: 卷积与感受野；ResNet；数据增强与迁移学习；在晶圆图与显微图像上的应用。
+      - id: M05.6
+        title: Sequence Models
+        title_zh: 序列模型
+        priority: P2
+        tags: []
+        prereqs: [M05.4]
+        anchors: []
+        note: notes/06-sequence-models.qmd
+        build_status: Planned
+        scope: RNN、LSTM、GRU 的结构与局限，作为理解 Transformer 的历史背景。Attention 归属 M06.1。
+
+  # ---------------------------------------------------------------------------
+  - id: M06
+    dir: modules/06-advanced-ai
+    title: Advanced AI Architectures
+    title_zh: 现代 AI 架构
+    priority: P1
+    hours: 70–90 h
+    anchors: [A2, A6]
+    chapters:
+      - id: M06.1
+        title: Attention and Transformer
+        title_zh: Attention 与 Transformer
+        priority: P1
+        tags: []
+        prereqs: [M05.4]
+        anchors: []
+        note: notes/01-attention-transformer.qmd
+        build_status: Planned
+        scope: Self-attention 与多头注意力；位置编码；Encoder 与 Decoder；预训练与迁移；注意力与图神经网络的关系。Attention 的主要归属章节。
+      - id: M06.2
+        title: Graph Neural Network Basics
+        title_zh: 图神经网络基础
+        priority: P1
+        tags: []
+        prereqs: [M05.4]
+        anchors: []
+        note: notes/02-graph-neural-networks.qmd
+        build_status: Planned
+        scope: 图表示；消息传递框架（MPNN）；GCN、GAT；节点级与图级任务；过平滑与表达能力（WL 测试的直觉）。
+      - id: M06.3
+        title: Geometric and Equivariant Deep Learning
+        title_zh: 几何与等变深度学习
+        priority: P1
+        tags: []
+        prereqs: [M02.7, M06.2]   # 蓝图明文规定前置 M02.7
+        anchors: []
+        note: notes/03-equivariant-deep-learning.qmd
+        build_status: Planned
+        scope: 不变性与等变性；基于距离与角度的不变网络（SchNet、DimeNet 类）；E(3) 等变网络（张量场网络、NequIP）；高阶多体相互作用（ACE、MACE）；局域性、截断半径与消息传递层数的关系；e3nn 实践。AI for Science 核心。
+      - id: M06.4
+        title: Generative Models
+        title_zh: 生成模型
+        priority: P1
+        tags: []
+        prereqs: [M02.3, M02.8, M05.4]   # 蓝图明文规定前置 M02.3、M02.8
+        anchors: [A6]
+        note: notes/04-generative-models.qmd
+        build_status: Planned
+        scope: 自编码器与 VAE；GAN（了解）；Normalizing Flow；扩散模型（DDPM、score-based SDE）；Flow Matching；条件生成与 guidance。材料生成的具体处理见 M07.6。扩散模型的主要归属章节。
+      - id: M06.5
+        title: Uncertainty Quantification, Active Learning and Bayesian Optimization
+        title_zh: 不确定性量化、主动学习与贝叶斯优化
+        priority: P1
+        tags: []
+        prereqs: [M04.3, M04.7, M05.4]
+        anchors: [A2]
+        note: notes/05-uq-active-learning-bo.qmd
+        build_status: Planned
+        scope: 偶然不确定性与认知不确定性；深度集成、MC Dropout、证据学习、最后一层高斯过程；校准评价（误差–不确定性相关性、校准曲线）；采集函数；主动学习循环及其失败模式（探索器与目标分布不匹配、不确定性失效、标注设置不一致）；贝叶斯优化。三者的主要归属章节。
+      - id: M06.6
+        title: Representation Learning and Transfer
+        title_zh: 表征学习与迁移
+        priority: P2
+        tags: []
+        prereqs: [M05.4]
+        anchors: []
+        note: notes/06-representation-learning.qmd
+        build_status: Planned
+        scope: 自监督学习；对比学习；预训练–微调；多任务学习；分布外泛化。
+
+  # ---------------------------------------------------------------------------
+  - id: M07
+    dir: modules/07-scientific-machine-learning
+    title: Scientific Machine Learning
+    title_zh: 科学机器学习
+    priority: P1
+    hours: 120 h 以上
+    anchors: [A1, A2, A3, A4, A6, A8]
+    chapters:
+      - id: M07.1
+        title: AI for Science Methodology
+        title_zh: AI for Science 方法论
+        priority: P1
+        tags: []
+        prereqs: [M04.8]
+        anchors: []
+        note: notes/01-ai4science-methodology.qmd
+        build_status: Planned
+        scope: 科学数据与一般工业数据的差异；物理先验与归纳偏置；对称性与守恒律；多保真数据；“可用性”验证与误差指标的区别。
+      - id: M07.2
+        title: Atomic Environment Representations
+        title_zh: 原子环境表示
+        priority: P1
+        tags: []
+        prereqs: [M02.7, M04.3]
+        anchors: []
+        note: notes/02-atomic-environment-representations.qmd
+        build_status: Planned
+        scope: 原子中心对称函数（ACSF）；SOAP；ACE 展开；描述符的完备性、光滑性与计算成本；截断半径的物理意义。
+      - id: M07.3
+        title: "Machine Learning Interatomic Potentials: Training and Validation"
+        title_zh: 机器学习势：训练与验证
+        priority: P1
+        tags: [FT]
+        prereqs: [M03.4, M05.2, M06.3]
+        anchors: [A1, A2, A3]
+        note: notes/03-mlip-training-validation.qmd
+        build_status: Planned
+        scope: 能量、力、应力的损失权重；训练集构建（AIMD、熔融–淬火、主动学习）；DFT 设置一致性（泛函、vdW 修正、SOC、赝势、截断能）；分层验证体系（误差指标 → MD 稳定性 → 结构、动力学与热力学性质 → 电子结构）；与 LAMMPS 的耦合方式。FT 仅适用于实践部分。
+      - id: M07.4
+        title: Universal Potentials and Materials Foundation Models
+        title_zh: 通用势与材料基础模型
+        priority: P1
+        tags: []
+        prereqs: [M07.3, M06.5]
+        anchors: [A2]
+        note: notes/04-universal-potentials.qmd
+        build_status: Planned
+        scope: 通用 MLIP（如 MACE-MP-0）的训练数据与适用范围；微调、蒸馏与迁移；通用模型作为探索器或初始化时的分布问题。
+      - id: M07.5
+        title: Machine Learning for Electronic Structure
+        title_zh: 电子结构机器学习
+        priority: P1
+        tags: []
+        prereqs: [M02.6, M06.3]
+        anchors: [A4, A6]
+        note: notes/05-electronic-structure-ml.qmd
+        build_status: Planned
+        scope: ML 哈密顿量（DeepH 类方法）的等变性设计；电荷密度预测；DOS 与能带预测；大体系电子结构的数值方法（稀疏对角化、KPM）；无序体系的局域化指标（IPR、迁移率边、Urbach 带尾）。
+      - id: M07.6
+        title: Generative Models for Crystals and Materials
+        title_zh: 晶体与材料生成模型
+        priority: P1
+        tags: []
+        prereqs: [M06.3, M06.4]
+        anchors: [A6]
+        note: notes/06-crystal-generative-models.qmd
+        build_status: Planned
+        scope: CDVAE、DiffCSP、MatterGen 等代表性方法；分数坐标的周期性处理（环面上的扩散）；晶格与对称性的生成；生成结果的评价（有效性、稳定性、新颖性、多样性）。
+      - id: M07.7
+        title: Physics-Informed Learning
+        title_zh: 物理信息学习
+        priority: P2
+        tags: []
+        prereqs: [M02.6, M05.2]
+        anchors: []
+        note: notes/07-physics-informed-learning.qmd
+        build_status: Planned
+        scope: PINN；PDE 残差损失；初边值条件的施加方式；失败模式（谱偏置、刚性问题、损失项不平衡）；替代与改进方法。
+      - id: M07.8
+        title: Neural Operators
+        title_zh: 神经算子
+        priority: P2
+        tags: []
+        prereqs: [M02.6, M05.4]
+        anchors: [A8]
+        note: notes/08-neural-operators.qmd
+        build_status: Planned
+        scope: Fourier Neural Operator；DeepONet；算子学习的问题设定；分辨率泛化；PDE 代理模型的评价。
+      - id: M07.9
+        title: Multiscale Modeling, Differentiable Simulation and Inverse Design
+        title_zh: 多尺度、可微分模拟与逆向设计
+        priority: P2
+        tags: []
+        prereqs: [M05.2, M07.3]
+        anchors: [A8]
+        note: notes/09-multiscale-differentiable-simulation.qmd
+        build_status: Planned
+        scope: DFT → MD → 连续介质的参数传递；多保真学习；可微分模拟（如 JAX-MD）；参数反演与逆向设计；不确定性传播。
+      - id: M07.10
+        title: AI in Device Simulation
+        title_zh: 器件仿真中的 AI
+        priority: P2
+        tags: []
+        prereqs: [M07.8]
+        anchors: [A8]
+        note: notes/10-ai-device-simulation.qmd
+        build_status: Planned
+        scope: TCAD 代理模型；电热耦合代理模型；PCM 器件建模（阈值切换、熔化与非晶化、电阻漂移模型）；工艺–器件协同优化与 DTCO 中的 AI 方法。
+
+  # ---------------------------------------------------------------------------
+  - id: M08
+    dir: modules/08-semiconductor-data-science
+    title: Semiconductor Manufacturing Data Science
+    title_zh: 半导体制造数据科学
+    priority: Branch
+    hours: 40–60 h
+    anchors: [A5]
+    chapters:
+      - id: M08.1
+        title: Semiconductor Manufacturing Data
+        title_zh: 半导体制造数据
+        priority: Branch
+        tags: []
+        prereqs: []
+        anchors: []
+        note: notes/01-manufacturing-data.qmd
+        build_status: Planned
+        scope: Fab 工艺流程概览；Lot、Wafer、Die 层级数据；工艺、设备与传感器数据；可追溯性与数据质量。
+      - id: M08.2
+        title: Process Monitoring
+        title_zh: 过程监控
+        priority: Branch
+        tags: []
+        prereqs: [M02.4, M04.5]
+        anchors: []
+        note: notes/02-process-monitoring.qmd
+        build_status: Planned
+        scope: 统计过程控制（SPC）与控制图；过程能力指数；故障检测与分类（FDC）；多变量过程监控（PCA-based、Hotelling T²）。
+      - id: M08.3
+        title: Yield and Defect Analysis
+        title_zh: 良率与缺陷分析
+        priority: Branch
+        tags: []
+        prereqs: [M04.7, M05.5]
+        anchors: []
+        note: notes/03-yield-defect-analysis.qmd
+        build_status: Planned
+        scope: 良率预测；晶圆图模式分类；缺陷图像分类；异常批次分析与根因归因。
+      - id: M08.4
+        title: Virtual Metrology
+        title_zh: 虚拟量测
+        priority: Branch
+        tags: []
+        prereqs: [M03.5, M04.4]
+        anchors: []
+        note: notes/04-virtual-metrology.qmd
+        build_status: Planned
+        scope: 计量值预测；时序传感器特征工程；设备状态建模；模型漂移监测。
+      - id: M08.5
+        title: Reliability and Optimization
+        title_zh: 可靠性与优化
+        priority: Branch
+        tags: []
+        prereqs: [M02.4, M03.6]
+        anchors: [A5]
+        note: notes/05-reliability-optimization.qmd
+        build_status: Planned
+        scope: Weibull 分析；生存分析；退化趋势预测（与 PCM 保持特性、电阻漂移等可靠性问题相关）；因果推断基础（归属 M12.1）；DOE 与响应面（归属 M03.6）；贝叶斯优化（归属 M06.5）。
+
+  # ---------------------------------------------------------------------------
+  - id: M09
+    dir: modules/09-ml-engineering-mlops
+    title: ML Engineering and MLOps
+    title_zh: ML 工程与 MLOps
+    priority: P1/P2
+    hours: 30–40 h
+    anchors: []
+    chapters:
+      - id: M09.1
+        title: Engineering AI Projects
+        title_zh: AI 项目工程化
+        priority: P1
+        tags: []
+        prereqs: [M01.3]
+        anchors: []
+        note: notes/01-project-engineering.qmd
+        build_status: Planned
+        scope: 包结构与接口设计；配置管理（YAML 或 Hydra，择一深入）；数值代码的测试策略（容差测试、性质测试、回归测试、梯度检验、对称性检验）；CI 基础。
+      - id: M09.2
+        title: Experiment Management and Reproducibility
+        title_zh: 实验管理与可复现性
+        priority: P1
+        tags: []
+        prereqs: [M09.1]
+        anchors: []
+        note: notes/02-experiment-management.qmd
+        build_status: Planned
+        scope: 实验追踪（MLflow 或 Weights & Biases，择一深入）；数据与模型版本管理（DVC 了解）；环境锁定；结果溯源。
+      - id: M09.3
+        title: Scientific Workflow Orchestration
+        title_zh: 科学计算工作流编排
+        priority: P2
+        tags: []
+        prereqs: [M09.1]
+        anchors: []
+        note: notes/03-workflow-orchestration.qmd
+        build_status: Planned
+        scope: 高通量计算工作流的组织（如 Snakemake、AiiDA、jobflow/atomate2 等，择一了解）；失败重试与数据溯源。
+      - id: M09.4
+        title: Model Deployment and Inference
+        title_zh: 模型部署与推理
+        priority: P2
+        tags: []
+        prereqs: [M05.3]
+        anchors: []
+        note: notes/04-deployment-inference.qmd
+        build_status: Planned
+        scope: FastAPI；Docker；推理优化（torch.compile、TorchScript、ONNX）。
+      - id: M09.5
+        title: Machine Learning in Production
+        title_zh: 生产环境 ML
+        priority: P3
+        tags: []
+        prereqs: [M09.2, M03.4]
+        anchors: []
+        note: notes/05-production-ml.qmd
+        build_status: Planned
+        scope: 模型监控；数据漂移检测；模型更新策略。
+
+  # ---------------------------------------------------------------------------
+  - id: M10
+    dir: modules/10-llm-rag-agents
+    title: LLM, RAG and Agents
+    title_zh: 大语言模型、RAG 与 Agent
+    priority: P2
+    hours: 30–40 h
+    anchors: []
+    chapters:
+      - id: M10.1
+        title: Large Language Model Principles
+        title_zh: 大语言模型原理
+        priority: P2
+        tags: []
+        prereqs: [M06.1]   # 蓝图明文规定
+        anchors: []
+        note: notes/01-llm-principles.qmd
+        build_status: Planned
+        scope: Tokenization；基于 Transformer 的 LLM；预训练、指令微调与偏好优化概览；LoRA 与 PEFT；推理与评价。
+      - id: M10.2
+        title: Retrieval-Augmented Generation
+        title_zh: 检索增强生成
+        priority: P2
+        tags: []
+        prereqs: [M10.1]
+        anchors: []
+        note: notes/02-retrieval-augmented-generation.qmd
+        build_status: Planned
+        scope: Embedding；向量检索与重排；RAG 流程；检索质量与答案可信度评价。
+      - id: M10.3
+        title: Agent Systems
+        title_zh: Agent 系统
+        priority: P2
+        tags: []
+        prereqs: [M10.1]
+        anchors: []
+        note: notes/03-agent-systems.qmd
+        build_status: Planned
+        scope: 工具调用；规划；状态与记忆；MCP 与工具集成；多 Agent 协作；人在回路；错误恢复与结果验证。
+      - id: M10.4
+        title: Scientific Agents
+        title_zh: 科学 Agent
+        priority: P2
+        tags: []
+        prereqs: [M10.3]
+        anchors: []
+        note: notes/04-scientific-agents.qmd
+        build_status: Planned
+        scope: 文献检索；科学数据库交互；DFT、MD、有限元工具调用；自动化计算工作流；计算结果校验与溯源。
+      - id: M10.5
+        title: Working Effectively with Coding Agents
+        title_zh: 高效使用编码 Agent
+        priority: P1
+        tags: []
+        prereqs: []
+        anchors: []
+        note: notes/05-coding-agents.qmd
+        build_status: Planned
+        scope: 编写可执行的规格文档；任务拆分与上下文管理；让 Agent 产出可验证结果；审阅 Agent 代码的方法。本仓库的建设过程本身就是本章的实践。
+
+  # ---------------------------------------------------------------------------
+  - id: M11
+    dir: modules/11-hpc-gpu-computing
+    title: HPC and GPU Computing
+    title_zh: 高性能计算与 GPU
+    priority: P1/P2
+    hours: 30–50 h
+    anchors: []
+    chapters:
+      - id: M11.1
+        title: Parallel Computing Basics and Performance Analysis
+        title_zh: 并行计算基础与性能分析
+        priority: P1
+        tags: []
+        prereqs: [M01.4]
+        anchors: [A7]
+        note: notes/01-parallel-computing-performance.qmd
+        build_status: Planned
+        scope: CPU 与 GPU 架构；存储层次与带宽瓶颈；Roofline 模型的直觉；性能分析方法论。
+      - id: M11.2
+        title: GPU Programming
+        title_zh: GPU 编程
+        priority: P2
+        tags: []
+        prereqs: [M11.1, M05.3]
+        anchors: []
+        note: notes/02-gpu-programming.qmd
+        build_status: Planned
+        scope: CUDA 编程模型；PyTorch Profiler；显存管理；混合精度的数值问题；Triton 入门（P3）。
+      - id: M11.3
+        title: Distributed and Multi-GPU Training
+        title_zh: 分布式与多 GPU 训练
+        priority: P2
+        tags: []
+        prereqs: [M11.2]
+        anchors: []
+        note: notes/03-distributed-training.qmd
+        build_status: Planned
+        scope: multiprocessing；MPI 基础；PyTorch DDP；大模型训练的并行策略概览。
+      - id: M11.4
+        title: Cluster Workflows
+        title_zh: 集群工作流
+        priority: P1
+        tags: [FT]
+        prereqs: [M01.3]
+        anchors: []
+        note: notes/04-cluster-workflows.qmd
+        build_status: Planned
+        scope: Slurm 与作业数组；容器（Apptainer）；ML 势在 LAMMPS 中的 GPU 性能瓶颈分析。FT 仅适用于部分内容。
+
+  # ---------------------------------------------------------------------------
+  - id: M12
+    dir: modules/12-advanced-topics
+    title: Advanced and Emerging Topics
+    title_zh: 进阶与前沿专题
+    priority: P3
+    hours: 开放
+    anchors: [A7]
+    chapters:
+      - id: M12.1
+        title: Causal Machine Learning
+        title_zh: 因果机器学习
+        priority: P3
+        tags: []
+        prereqs: [M02.4]
+        anchors: []
+        note: notes/01-causal-ml.qmd
+        build_status: Planned
+        scope: 因果图与结构因果模型；因果效应估计；分布偏移下的因果视角。因果推断的主要归属章节。
+      - id: M12.2
+        title: Reinforcement Learning
+        title_zh: 强化学习
+        priority: P3
+        tags: []
+        prereqs: [M05.4]
+        anchors: []
+        note: notes/02-reinforcement-learning.qmd
+        build_status: Planned
+        scope: MDP；基于价值的方法；策略梯度；离线强化学习；实验与工艺决策优化。
+      - id: M12.3
+        title: Probabilistic Machine Learning
+        title_zh: 概率机器学习
+        priority: P3
+        tags: []
+        prereqs: [M02.3, M06.5]
+        anchors: []
+        note: notes/03-probabilistic-ml.qmd
+        build_status: Planned
+        scope: 贝叶斯神经网络；变分推断；概率编程；与 M06.5 的关系。
+      - id: M12.4
+        title: Machine Learning Systems
+        title_zh: 机器学习系统
+        priority: P3
+        tags: []
+        prereqs: [M11.1]
+        anchors: []
+        note: notes/04-ml-systems.qmd
+        build_status: Planned
+        scope: 编译与算子优化基础；高性能算法实现；ML 系统设计。
+      - id: M12.5
+        title: AI Hardware and Analog In-Memory Computing
+        title_zh: AI 硬件与模拟存内计算
+        priority: P2
+        tags: []
+        prereqs: [M05.4]
+        anchors: [A7]
+        note: notes/05-ai-hardware-in-memory-computing.qmd
+        build_status: Planned
+        scope: 神经网络量化；噪声感知训练；PCM 交叉阵列的存内计算原理；电导漂移对权重的影响与补偿；硬件感知训练工具（如 IBM aihwkit）。本章连接“器件物理”与“AI 系统”。
