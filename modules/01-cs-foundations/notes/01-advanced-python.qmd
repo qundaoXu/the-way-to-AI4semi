@@ -1,0 +1,339 @@
+---
+id: M01.1
+title: Python 进阶
+subtitle: Advanced Python
+module: M01
+priority: P0
+tags: [FT]
+prereqs: []
+anchors: []
+build_status: Draft          # 由 sync_index.py 从 curriculum.yaml 镜像，请勿手改
+learn_status: Not Started    # 学习者所有：Not Started / Reading / Practicing / Reviewed / Mastered
+evidence: []                 # 学习者所有：掌握证据（测试提交、复测记录等）
+next_review:                 # 学习者所有：下次复测日期
+last_reviewed: 2026-11-11
+code-fold: true
+code-summary: "显示绘图代码"
+---
+
+```{python}
+#| label: setup
+#| include: false
+import tracemalloc
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import BLUE, GRID, INK, MUTED, ORANGE, SURFACE, plotly_html, use_style
+
+use_style()
+```
+
+## 0. 定位
+
+能写出可运行的科研脚本，和能写出别人（包括三个月后的自己）敢复用的代码，中间隔着的是对语言机制的理解：`for` 循环背后发生了什么，`import` 为什么改了源码却不生效，`pickle` 为什么不该用来交换数据。本章不讲语法，而是讲这些机制的内部逻辑、设计取舍和典型失败方式。它们会在后面每一个模块里反复出现：ASE 的 `Atoms` 是一个实现了序列协议的对象，PyTorch 的 `Dataset` 依赖 `__len__` 和 `__getitem__`，训练脚本的检查点就是 pickle。
+
+## 1. 学习目标
+
+学完本章，你应当能够：
+
+- **解释** `len`、索引、`for`、`in`、`with` 分别触发哪些特殊方法，以及为什么它们在类型上查找；
+- **判断**何时该用生成器做惰性计算，并**估算**它与一次性读入的内存差别；
+- **说明**闭包的后期绑定和装饰器的 `functools.wraps`、`lru_cache` 各自的边界；
+- **设计**一个在异常发生时也能恢复现场的上下文管理器，以及一个能让调用方区分失败类型的异常层次；
+- **解释** `sys.modules` 缓存与 `importlib.reload` 的行为；
+- **选择**合适的科学数据格式，并**说明**文本格式的有效数字、JSON 的 `NaN` 和 pickle 的安全与兼容问题。
+
+## 2. 前置知识
+
+只要求日常的 Python 脚本经验。浮点数的二进制表示在 M01.4 系统讲解，本章只用到“float64 约有 16 位十进制有效数字”这一结论；包的组织、测试和代码检查工具在 M01.3 展开。
+
+## 3. 推荐阅读
+
+1. **Ramalho, *Fluent Python*（第 2 版）**：第 1 章（数据模型）、第 5 章（数据类构建器）、第 9 章（装饰器与闭包）、第 12 章（序列的特殊方法）、第 17 章（迭代器与生成器）、第 18 章（`with`、`match` 与 `else` 块）。本章的主干，每个机制都有完整的例子和设计讨论。第 8、15 章讲类型注解，可以后读。
+2. **Python 语言参考**：[第 3 节 Data model](https://docs.python.org/3/reference/datamodel.html) 的 3.3.7（容器类型）、3.3.9（上下文管理器）、3.3.13（特殊方法的查找）；[第 5 节 The import system](https://docs.python.org/3/reference/import.html) 的 5.2（包）与 5.3.1（模块缓存）。这是权威定义，遇到“到底会不会调用这个方法”时查这里。
+3. **Python 标准库文档 [`pickle`](https://docs.python.org/3/library/pickle.html)**：开头的安全警告，以及 “Restricting Globals” 一节。
+
+## 4. 核心概念与直觉
+
+### 4.1 协议：解释器调用的是类型上的特殊方法
+
+Python 的很多语法其实是“调用某个约定名字的方法”。写 `len(s)`，解释器去 `type(s)` 上找 `__len__`；写 `s[i]`，找 `__getitem__`；写 `for a in s`，先找 `__iter__`，找不到就退回到从 0 开始反复调用 `__getitem__`，直到它抛出 `IndexError`。一个类只要实现了某组方法，就“是”某种东西，这就是**协议**（protocol），也常被称为鸭子类型。
+
+::: {.panel-tabset}
+
+### 直觉
+
+把类当成一个插座面板。`len`、`[]`、`for`、`in`、`with` 是不同形状的插头，每个插头只认一个特定名字的插孔。插孔开在**类**上，不在某个实例上，所以给实例临时绑定一个 `__len__` 不起作用。
+
+### 机制
+
+`for a in s` 大致等价于：
+
+```python
+it = iter(s)            # type(s).__iter__(s)，或退回到序列协议
+while True:
+    try:
+        a = next(it)    # type(it).__next__(it)
+    except StopIteration:
+        break
+    ...                 # 循环体
+```
+
+`in` 在没有 `__contains__` 时也退回到逐个迭代并用 `==` 比较；定义了 `__eq__` 而没有定义 `__hash__` 的类，`__hash__` 会被自动设为 `None`。
+
+### 代码
+
+```python
+class Structure:
+    def __len__(self):            # len(s)
+        return len(self.symbols)
+
+    def __getitem__(self, i):     # s[i]、s[a:b]，以及退回式的 for 和 reversed
+        if isinstance(i, slice):
+            return Structure(self.symbols[i], self.positions[i])
+        return self.symbols[i], self.positions[i]
+```
+
+:::
+
+::: {.column-margin}
+**与 ASE 的类比**：`ase.Atoms` 正是这样设计的。`len(atoms)` 是原子数，`atoms[0]` 返回一个 `Atom`，`atoms[:10]` 返回一个新的 `Atoms`。切片返回同类型对象，是让下游代码不必区分“一个结构”和“结构的一部分”的关键。
+:::
+
+协议的好处是组合：实现了 `__len__` 和 `__getitem__` 的对象，可以直接交给 `sorted`、`reversed`、`zip`、PyTorch 的 `DataLoader`。风险是退回行为会在你没想到的地方生效。实例 notebook 第 1 节演示了一个典型的坑：元素里含 NumPy 数组时，默认的 `in` 会对数组调用 `==` 再取 `bool`，直接抛出 `ValueError`。
+
+### 4.2 惰性计算：生成器把内存从“随数据量增长”变成常数
+
+处理一条几万帧的 MD 轨迹，最直接的写法是先把所有帧读进一个列表，再循环处理。生成器函数（含有 `yield` 的函数）提供了另一种方式：调用它不执行函数体，而是返回一个生成器对象；每次 `next()`，函数从上次暂停的地方继续运行到下一个 `yield`，交出一帧后再次暂停。处理完一帧就丢掉一帧，内存里始终只有一帧。@fig-lazy 用合成数据测量了两种写法的内存峰值。
+
+```{python}
+#| label: fig-lazy
+#| fig-cap: "求一条合成轨迹的平均坐标时，Python 分配的内存峰值（tracemalloc 测量，每帧 500 个原子）。一次性构造列表时峰值随帧数线性增长；生成器的峰值只取决于单帧大小。"
+#| fig-alt: "双对数坐标图：橙线随帧数线性上升，蓝线保持水平。"
+def frames(n_frames, n_atoms=500, seed=0):
+    rng = np.random.default_rng(seed)
+    for _ in range(n_frames):
+        yield rng.uniform(0, 20, size=(n_atoms, 3))
+
+
+def peak_mib(func):
+    tracemalloc.start()
+    func()
+    peak = tracemalloc.get_traced_memory()[1]
+    tracemalloc.stop()
+    return peak / 2**20
+
+
+ns = np.array([50, 100, 200, 400, 800, 1600])
+eager = [peak_mib(lambda n=n: np.mean([f.mean() for f in list(frames(n))])) for n in ns]
+lazy = [peak_mib(lambda n=n: sum(f.mean() for f in frames(n)) / n) for n in ns]
+
+fig, ax = plt.subplots(figsize=(5.6, 3.4))
+ax.plot(ns, eager, "o-", color=ORANGE, label="list(frames(n))：一次性读入")
+ax.plot(ns, lazy, "o-", color=BLUE, label="for f in frames(n)：逐帧处理")
+ax.plot(ns, ns * 500 * 3 * 8 / 2**20, color=MUTED, lw=1, ls="--", label=r"$N \cdot m_{\mathrm{frame}}$")
+ax.set(xscale="log", yscale="log", xlabel="帧数 N", ylabel="内存峰值 / MiB")
+ax.minorticks_off()
+ax.set_xticks(ns, [str(n) for n in ns])
+ax.legend(fontsize=8.5)
+fig.tight_layout()
+plt.show()
+```
+
+两条曲线可以用一个简单的内存模型概括。记单帧数组占 $m_{\text{frame}}$ 字节，$N$ 为帧数，$c$ 为与数据量无关的固定开销，则
+
+$$
+M_{\text{eager}} \approx N\, m_{\text{frame}} + c,
+\qquad
+M_{\text{lazy}} \approx m_{\text{frame}} + c .
+$$ {#eq-memory}
+
+图中的虚线就是 $N m_{\text{frame}}$，一次性读入的曲线贴着它走。代价也很明确：生成器**只能遍历一次**，耗尽之后再遍历不会报错，只会静默地得到零个元素。需要多次遍历时，应当传入每次 `__iter__` 都返回新生成器的可迭代对象，而不是传生成器本身。
+
+::: {.column-margin}
+**类比**：这就是 `ase.io.iread` 与 `ase.io.read(..., index=":")` 的区别。后者把整条轨迹变成 `Atoms` 列表，大体系的 XDATCAR 或 extxyz 轨迹很容易把内存吃满。
+:::
+
+::: {.callout-note collapse="true" title="细节：生成器为什么能“暂停”"}
+普通函数调用时，解释器创建一个栈帧（frame）保存局部变量和当前执行位置，函数返回时栈帧被销毁。生成器函数被调用时同样创建栈帧，但不立即执行，而是把栈帧包装进生成器对象返回。
+
+每次 `next(gen)`，解释器恢复这个栈帧，从记录的位置继续执行，遇到 `yield` 时把值交给调用方，并**保留**栈帧。函数体执行完毕（或 `return`）时抛出 `StopIteration`，`for` 循环据此结束。因此生成器的局部变量（包括打开的文件句柄）在两次 `next` 之间一直存活。
+
+这带来一个资源管理问题：在生成器里用 `with open(...)` 打开文件，如果调用方只取了几帧就不再使用，文件要等生成器对象被回收（或调用 `gen.close()`）时才关闭。`close()` 会在暂停处抛出 `GeneratorExit`，从而触发 `with` 块的清理。实例 notebook 第 2 节显式调用了 `close()`。
+:::
+
+### 4.3 闭包与装饰器
+
+函数是对象，可以作为参数传入、作为返回值返回。一个嵌套函数引用了外层函数的局部变量时，这个变量被放进一个 **cell** 中，嵌套函数连同这些 cell 一起构成**闭包**。关键在于闭包捕获的是变量（cell），不是变量在那一刻的值。在循环里创建 `lambda r: r < rc`，所有函数共享同一个 `rc`，循环结束后它们看到的都是最后一个截断半径。用默认参数 `lambda r, rc=rc: r < rc` 或 `functools.partial` 才能在创建时把值固定下来。
+
+**装饰器**是闭包最常见的用途：`@timed` 写在函数定义上方，等价于 `f = timed(f)`，`timed` 返回一个包装函数，在调用前后插入计时、日志、缓存或单位检查。包装函数要用 `functools.wraps(func)` 修饰，否则原函数的名字和文档字符串会丢失，日志和调试器里看到的都是 `wrapper`。
+
+`functools.lru_cache`（以及等价于不限大小版本的 `functools.cache`）是标准库提供的装饰器，以参数为键缓存返回值。它只对纯函数安全，并且要求参数可哈希。NumPy 数组不可哈希，不能直接作参数；更隐蔽的问题是返回可变对象时，调用方的原地修改会污染缓存，下一次调用拿到的是被改过的结果。
+
+### 4.4 上下文管理器：把“恢复现场”写成语言保证
+
+`with cm as x:` 的语义是：调用 `type(cm).__enter__`，执行代码块，**无论代码块如何结束**都调用 `__exit__(exc_type, exc, tb)`。“无论如何”包括正常结束、`return`、`break`，也包括抛出异常。这正是 `try/finally` 的语义，只不过把配对的“获取 / 释放”封装进一个可复用的对象里。打开文件、切换工作目录、临时修改 `np.errstate`、获取锁、启动计时，都属于这种模式。
+
+`__exit__` 的返回值决定异常的命运：返回真值表示异常已被处理，会被吞掉。`contextlib.suppress(FileNotFoundError)` 就是这样实现的。自己写的 `__exit__` 不小心返回了 `True`，或者在 `contextlib.contextmanager` 里用裸 `except:` 包住了 `yield`，都会让错误悄无声息地消失。
+
+::: {.column-margin}
+**类比**：在临时目录里起一个 VASP 或 LAMMPS 计算、结束后回到原目录，是最典型的上下文管理器用例。漏掉 `finally` 时，一次失败的计算会让后续所有相对路径都指向错误的目录。
+:::
+
+## 5. 数学原理：文本格式需要多少位有效数字
+
+科学数据最终都要落到文件上。extxyz、POSCAR、LAMMPS data 文件都是文本格式，坐标写多少位有效数字直接决定读回来的精度。把实数 $x$ 舍入到 $p$ 位十进制有效数字得到 $\hat x$，相对误差满足
+
+$$
+\frac{|\hat x - x|}{|x|} \le \frac{1}{2}\,10^{\,1-p}.
+$$ {#eq-roundoff}
+
+对 float64 还有一个更强的问题：写出再读回，能否得到**完全相同**的二进制数？结论是 17 位有效数字总是足够，15 位不够：
+
+$$
+p_{\min} = \left\lceil 1 + 53\log_{10}2 \right\rceil = \lceil 16.95 \rceil = 17 .
+$$ {#eq-roundtrip}
+
+这里 53 是 float64 尾数的位数。Python 的 `repr(float)` 和 `json` 模块用的是“能精确往返的最短表示”，所以 `repr` 和 `json.dumps` 写出的 float 读回来总是相等；`f"{x:.6f}"`、`"%.10g"` 这样的固定格式则不保证。
+
+::: {.callout-note collapse="true" title="推导：为什么是 17 位"}
+设 float64 的尾数有 $q = 53$ 位二进制，相邻两个 float64 之间的相对间距在 $2^{-53}$ 到 $2^{-52}$ 之间。要让十进制表示能唯一确定一个 float64，十进制网格的相对间距必须小于二进制网格的最小相对间距。$p$ 位十进制数的相对间距最大约为 $10^{1-p}$，于是要求
+
+$$
+10^{\,1-p} < 2^{-q}
+\quad\Longleftrightarrow\quad
+p > 1 + q\log_{10}2 .
+$$
+
+代入 $q = 53$ 得 $p > 16.95$，即 $p = 17$。反方向（十进制 → 二进制 → 十进制）的条件是 $p \le \lfloor (q-1)\log_{10}2 \rfloor = 15$：不超过 15 位有效数字的十进制数存成 float64 再写出，能得到原来的数字。这两个数 17 和 15 常被混淆，它们回答的是方向相反的两个问题。这一结论通常归功于 Matula（1968）`[待核实]`。
+:::
+
+拖动 @fig-digits 的滑块，观察不同有效数字下坐标往返误差的分布。$p \le 15$ 时误差分布的上沿紧贴 @eq-roundoff 的界；$p = 16$ 时约一半坐标已经精确往返，最大误差反而略超出上界，因为读回时十进制数又被舍入到最近的 float64，多出一次约 $10^{-16}$ 的二进制舍入；$p = 17$ 时全部坐标精确往返。
+
+```{python}
+#| label: fig-digits
+#| fig-cap: "把 5000 个 [0, 20) Å 内的随机坐标写成 p 位有效数字再读回，相对误差的分布（交互图）。虚线是 @eq-roundoff 的上界；精确往返的坐标不计入直方图，比例显示在标题中。"
+import plotly.graph_objects as go
+
+rng = np.random.default_rng(1)
+x = rng.uniform(0, 20, 5000)
+digits = list(range(4, 18))
+fig = go.Figure()
+titles, shapes = [], []
+for p in digits:
+    xr = np.array([float(f"{v:.{p}g}") for v in x])
+    rel = np.abs(xr - x) / x
+    exact = np.mean(rel == 0)
+    bound = 0.5 * 10.0 ** (1 - p)
+    fig.add_histogram(x=np.log10(rel[rel > 0]), nbinsx=40, marker_color=BLUE,
+                      visible=(p == 8), name=f"p = {p}", showlegend=False)
+    titles.append(f"p = {p}：最大相对误差 {rel.max():.1e}，上界 {bound:.1e}，精确往返 {exact:.0%}")
+    shapes.append([dict(type="line", x0=np.log10(bound), x1=np.log10(bound), y0=0, y1=1,
+                        yref="paper", line=dict(color=ORANGE, dash="dash"))])
+
+start = digits.index(8)
+steps = [dict(method="update", label=str(p),
+              args=[{"visible": [j == i for j in range(len(digits))]},
+                    {"title.text": titles[i], "shapes": shapes[i]}])
+         for i, p in enumerate(digits)]
+fig.update_layout(
+    title=dict(text=titles[start], font=dict(size=13, color=MUTED), x=0.02),
+    shapes=shapes[start],
+    sliders=[dict(active=start, steps=steps, currentvalue=dict(prefix="有效数字 p = "), pad=dict(t=30))],
+    xaxis=dict(title="log10(相对误差)", range=[-18, -3], gridcolor=GRID, zeroline=False),
+    yaxis=dict(title="坐标数", gridcolor=GRID, zeroline=False),
+    paper_bgcolor=SURFACE, plot_bgcolor=SURFACE, font=dict(color=INK),
+    margin=dict(l=50, r=20, t=60, b=20), height=420,
+)
+plotly_html(fig)
+```
+
+对结构本身来说，$10^{-6}$ Å 的截断误差无关紧要。但如果读回的坐标要用来做有限差分的力检验（步长常取 $10^{-3}$ 到 $10^{-4}$ Å），或者两个程序之间要逐位比较结果，就必须使用 17 位或二进制格式。
+
+## 6. 算法与实现要点
+
+**`dataclass` 与类型注解。** `@dataclass` 根据带注解的类属性生成 `__init__`、`__repr__`、`__eq__`；`frozen=True` 禁止赋值，并因此可以安全地生成 `__hash__`，适合做模拟参数这种“定义后不该改”的对象。类型注解在运行时**不做检查**，把字符串传给注解为 `float` 的字段不会报错；需要的约束写在 `__post_init__` 里。可变默认值必须用 `field(default_factory=list)`，这是为了避免普通函数“默认参数只求值一次”的陷阱。
+
+**导入系统。** `import m` 先查 `sys.modules`，命中就直接返回已有的模块对象，模块的顶层代码只在第一次导入时执行。`importlib.reload(m)` 会重新执行顶层代码，但复用同一个模块对象；`from m import x` 在导入时把 `x` 绑定到当时的对象，重载之后不会更新。所以在 notebook 里修改了自己包的源码，最稳妥的做法是重启内核。包（含 `__init__.py` 的目录）的组织与安装在 M01.3 讨论。
+
+**异常设计。** 为自己的库定义一个根异常类，再按调用方**需要做出的不同反应**细分子类，而不是按出错的代码位置细分。异常对象可以携带结构化字段（如未收敛的步数和残差）；转换异常类型时用 `raise NewError(...) from err` 保留原因；向上传递时用 `err.add_note(...)`（Python 3.11 起）补充上下文。不要用 `except Exception: pass` 吞掉错误，它会把一个可诊断的失败变成一个不可诊断的错误结果。
+
+**科学数据格式怎么选。** 下表是几种常见格式的取舍。HDF5 需要 `h5py`，本仓库暂未引入，这里只做概念比较。
+
+| 格式 | 自描述 | 浮点精度 | 部分读取 | 安全 | 跨语言 | 适用 |
+|---|---|---|---|---|---|---|
+| extxyz（文本） | 是（`Properties` 声明列） | 取决于写出的位数 | 逐帧顺序读 | 安全 | 好 | 结构与小规模轨迹、MLIP 训练集 |
+| JSON | 是 | `repr` 精确往返 | 否 | 安全 | 好 | 元数据、参数、结果摘要 |
+| `.npy` / `.npz` | 部分（形状、dtype） | 精确 | `.npy` 可内存映射 | 默认禁止加载对象数组 | 一般 | 单个大数组 |
+| HDF5 | 是（属性、层次结构） | 精确 | 按块随机访问、可压缩 | 安全 | 好 | 大型轨迹、电荷密度网格 |
+| pickle | 否 | 精确 | 否 | **加载即可执行代码** | 仅 Python | 同一份代码内的短期缓存 |
+
+extxyz 文件的每一帧是：第一行原子数；第二行 `key=value` 对，其中 `Lattice` 给出晶胞，`Properties=species:S:1:pos:R:3` 声明后续每行的列名、类型（S、R、I、L）和列数；之后每行一个原子。实例 notebook 第 8 节手写了一个最小的读写器并做了往返检验。
+
+::: {.callout-warning title="不要加载来源不明的 pickle"}
+pickle 存的不是数据，而是一段“如何重建对象”的指令。对象可以通过 `__reduce__` 指定加载时调用任意函数，`pickle.loads` 会照做。Python 文档开篇就警告：只加载你信任的数据。同样的机制也让 pickle 按“模块路径 + 类名”引用类，类改名或移动之后，旧文件就读不出来了。
+:::
+
+## 7. 实例 Notebook
+
+本章的代码讲解在 [notebooks/01-advanced-python.ipynb](../notebooks/01-advanced-python.ipynb)，共 8 节，全部带运行输出，在 VS Code 中选择仓库 `.venv` 的内核即可逐单元运行。改动后用 `make nb M=01` 重新执行并保存输出。
+
+| 节 | 内容 | 对应讲义 |
+|---|---|---|
+| 1 | 只实现 `__len__` + `__getitem__` 的 `Structure` 类：迭代、切片、`reversed` 自动可用；`in` 与 NumPy 数组的冲突；不可哈希 | 4.1 |
+| 2 | 逐帧读取 extxyz 轨迹的生成器与列表的内存对比；生成器耗尽后静默为空 | 4.2、@eq-memory |
+| 3 | 闭包的后期绑定；带 `functools.wraps` 的计时装饰器；`lru_cache` 返回可变对象导致缓存污染 | 4.3 |
+| 4 | 出错也能恢复工作目录与 `np.errstate` 的上下文管理器；`__exit__` 返回 `True` 吞掉异常 | 4.4 |
+| 5 | 冻结的 `MDSettings` dataclass、`__post_init__` 校验、注解不做运行时检查、可变默认值 | 6 |
+| 6 | `sys.modules` 缓存、`importlib.reload`、过期的 `from ... import` | 6 |
+| 7 | 领域异常层次、`raise ... from`、`add_note` | 6 |
+| 8 | 手写 extxyz 往返检验与有效数字；JSON 的 `NaN` 与 NumPy 类型；pickle 的 `__reduce__` 与类改名 | 5、6 |
+
+本章属于 Level 1：全部用标准库和 NumPy 演示机制，不依赖 ASE 或 h5py。
+
+## 8. 领域连接
+
+**结构与轨迹对象。** ASE 的 `Atoms`、pymatgen 的 `Structure` 都实现了序列协议，PyTorch 的 `Dataset` 只要求 `__len__` 和 `__getitem__`。理解协议之后，把自己的数据集类接入 `DataLoader`，或者让分析函数同时接受 `Atoms` 和自定义对象，都只是实现几个特殊方法的问题。
+
+**大体系数据。** 百万原子的轨迹、高分辨率的电荷密度网格，一次读入往往放不进内存。生成器适合顺序扫描（例如计算 RDF、MSD 的累加量），需要随机访问时用 HDF5 的分块存储或 `.npy` 的内存映射。
+
+**MLIP 数据集与检查点。** 很多 MLIP 训练流程以 extxyz 作为数据格式，能量、力、应力分别写在注释行和 `Properties` 声明的列里。写数据集时用足够的有效数字，否则力的标签会带上额外的截断噪声。PyTorch 的 `torch.save` 默认使用 pickle，加载他人发布的检查点时要注意 pickle 的安全问题；较新版本的 PyTorch 已把 `torch.load` 的 `weights_only` 默认值改为 `True`，只允许加载张量等安全类型。
+
+本章没有直接对应的研究锚点。它是 M01.5（高性能 Python）和 Module 05 中 PyTorch 数据管线的基础。
+
+## 9. 常见误区与失败模式
+
+- 把生成器传给两个函数，第二个函数静默地拿到零个元素，得到 `nan` 或空图。
+- 循环里创建 `lambda` 或回调函数，忘了它们共享同一个循环变量。
+- 写装饰器时忘了 `functools.wraps`，日志里全是 `wrapper`；给 `lru_cache` 的函数返回可变数组，被调用方改坏缓存。
+- `__exit__` 或 `contextmanager` 中的裸 `except` 吞掉了异常；或者没有 `finally`，出错后工作目录没有恢复。
+- 以为类型注解会在运行时检查；在 dataclass 或普通函数里使用可变默认值。
+- 在 notebook 里改了源码，`from m import f` 得到的仍是旧函数，于是以为修改没有效果。
+- 用 `except Exception: pass` 让失败的计算返回一个看似合理的默认值。
+- 用 `%.6f` 写出坐标，再用它做有限差分检验或逐位比较；把 `NaN` 写进 JSON 交给其他语言的程序读取。
+- 用 pickle 长期保存数据或与他人交换数据；加载来源不明的 pickle 或检查点。
+
+## 10. 小结
+
+- 语法背后是类型上的特殊方法。实现 `__len__` + `__getitem__` 就获得了迭代、切片与 `reversed`；默认的 `in` 与 `__hash__` 行为要留意。
+- 生成器把内存峰值从 $N m_{\text{frame}}$ 降到 $m_{\text{frame}}$（@eq-memory），代价是只能遍历一次。
+- 闭包捕获变量而不是值；装饰器要用 `functools.wraps`；`lru_cache` 只适合纯函数与可哈希参数。
+- `with` 保证 `__exit__` 一定执行；返回真值会吞掉异常。
+- 类型注解不做运行时检查；冻结的 dataclass 可哈希，校验写在 `__post_init__`。
+- `import` 命中 `sys.modules` 时不重新执行模块，`reload` 不更新 `from ... import` 得到的名字。
+- float64 需要 17 位有效数字才能精确往返（@eq-roundtrip）；pickle 加载即执行，且按名字引用类。
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::
+
+## 12. 参考资料
+
+- Ramalho, L. *Fluent Python*, 2nd ed. O'Reilly, 2022. [配套网站](https://www.fluentpython.com/) · [示例代码与章节目录](https://github.com/fluentpython/example-code-2e) `[待核实]`（出版信息取自示例代码仓库，O'Reilly 产品页拒绝自动访问）
+- Python Software Foundation. *The Python Language Reference*, §3 Data model; §5 The import system. <https://docs.python.org/3/reference/datamodel.html> · <https://docs.python.org/3/reference/import.html>
+- Python Software Foundation. *The Python Standard Library*: `pickle` — Python object serialization. <https://docs.python.org/3/library/pickle.html>
+- libAtoms. *extxyz: Extended XYZ specification and parsing library*. <https://github.com/libAtoms/extxyz>
+- Matula, D. W. In-and-out conversions. *Communications of the ACM* **11**(1), 47–50 (1968). `[待核实]`
