@@ -1,0 +1,81 @@
+# ---- Python 环境与缓存 ----
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+.jupyter_cache/
+build/
+dist/
+
+# ---- Notebook：仓库以 Jupytext 的 .py 为准 ----
+*.ipynb
+
+# ---- Quarto：渲染输出不提交，_freeze/ 需要提交 ----
+_site/
+.quarto/
+/.luarc.json
+*_files/
+*.quarto_ipynb
+
+# ---- 模型权重 ----
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+
+# ---- 实验产物 ----
+runs/
+mlruns/
+wandb/
+outputs/
+lightning_logs/
+
+# ---- 大型数据与轨迹 ----
+data/raw/
+datasets/raw/
+datasets/cache/
+*.lammpstrj
+*.traj
+*.dcd
+*.xtc
+*.h5
+*.hdf5
+*.lmdb
+*.npz
+*.parquet
+# 轻量样例（单个文件 < 5 MB）可以提交
+!datasets/sample/**
+
+# ---- DFT 输出 ----
+WAVECAR
+CHGCAR
+CHG
+OUTCAR
+vasprun.xml
+PROCAR
+DOSCAR
+EIGENVAL
+LOCPOT
+ELFCAR
+AECCAR*
+
+# ---- 本地教材 PDF ----
+library/
+
+# ---- 系统与编辑器 ----
+.DS_Store
+*.swp
+.idea/
+# .vscode/ 中的共享配置需要提交，个人文件除外
+.vscode/*.local.json
+.claude/settings.local.json
+
+# 注意：.env 只包含 LEARN_TARGET=exercises，需要提交；不要在其中写入任何密钥。
+
+/.quarto/
+**/*.quarto_ipynb

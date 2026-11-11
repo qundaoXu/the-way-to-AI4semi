@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # 安装核心依赖、dev 组与 Quarto（site 组，版本由 uv.lock 锁定）。
+      # PyTorch 尚未加入依赖；加入 dl extra 后在这里安装 CPU 版。
+      - name: Install dependencies
+        run: uv sync --locked
+
+      # ruff + 以参考解答运行全部测试 + 仓库一致性 + 索引检查。
+      # 标记为 slow 或 gpu 的测试默认不运行。
+      - name: make check
+        run: make check
+
+      - name: Exercise stubs must fail
+        run: |
+          if LEARN_TARGET=exercises uv run pytest -q modules/04-classical-machine-learning/tests -x -k "ols_matches_sklearn" ; then
+            echo "练习桩不应该通过测试" && exit 1
+          fi
+
+      - name: make site
+        run: make site

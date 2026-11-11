@@ -1,0 +1,32 @@
+# 用仓库 .venv 里的工具运行（版本由 uv.lock 锁定），不另外下载钩子环境。
+# 启用：make setup（或 uv run pre-commit install）
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --fix
+        language: system
+        types: [python]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format
+        language: system
+        types: [python]
+      - id: nbstripout
+        name: nbstripout（清除 notebook 输出）
+        entry: uv run nbstripout
+        language: system
+        files: \.ipynb$
+      - id: sync-index
+        name: 索引是否最新（否则运行 make sync）
+        entry: uv run python scripts/sync_index.py --check
+        language: system
+        pass_filenames: false
+        files: ^(curriculum\.yaml|modules/.*\.(qmd|md)|CURRICULUM\.md|progress/.*)$
+      - id: check-repo
+        name: 仓库一致性检查
+        entry: uv run python scripts/check_repo.py
+        language: system
+        pass_filenames: false
+        files: \.(md|qmd|yaml)$
