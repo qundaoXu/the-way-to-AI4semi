@@ -35,6 +35,6 @@ uv run pytest modules/04-classical-machine-learning/tests -x --pdb  # 第一个�
 
 ## 完成之后
 
-1. 全部测试通过后，把学习状态改为 `Reviewed` 前，先做完讲义的自测题；
+1. 全部测试通过后，把学习状态改为 `Reviewed` 前，先把[实例 notebook](../notebooks/02-linear-models.ipynb) 从头运行一遍，对照讲义理解每个输出；
 2. 用 `make status ID=M04.2 S=Reviewed` 更新状态，并在讲义 frontmatter 的 `evidence` 里记录证据（例如测试通过时的 commit）；
 3. 再对照 `solutions/` 看参考解答与自己的实现有什么不同。

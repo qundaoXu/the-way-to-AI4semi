@@ -403,6 +403,7 @@ $$
 
 | 类型 | 文件 | 内容 |
 |---|---|---|
+| 实例 notebook | [notebooks/02-linear-models.ipynb](../notebooks/02-linear-models.ipynb) | 正交投影的数值检验、正规方程的精度损失、共线性、Ridge 收缩因子、Lasso 稀疏性、可分数据上的逻辑回归 |
 | 示例 | [examples/collinearity_demo.py](../examples/collinearity_demo.py) | 多重共线性下 OLS 系数的方差爆炸，以及 Ridge 的稳定作用 |
 | 练习 1 | [exercises/linear_regression.py](../exercises/linear_regression.py) | `fit_ols`、`fit_ridge`、`ridge_loss_and_grad`、`soft_threshold`、`fit_lasso_cd` |
 | 练习 2 | [exercises/logistic_regression.py](../exercises/logistic_regression.py) | `sigmoid`、`logistic_loss_and_grad`、`fit_logistic_newton` |
@@ -443,27 +444,7 @@ uv run pytest modules/04-classical-machine-learning/tests -k ridge   # 只跑名
 - 直接比较不同库在“相同 $\alpha$”下的结果，而没有核对目标函数的归一化方式。
 - 把逻辑回归输出的概率当成已校准的概率，尤其在类别不平衡或加了强正则时。校准见 M04.7。
 
-## 10. 自测题
-
-1. **概念**：为什么说平方损失隐含了一个噪声假设？数据中有少量严重离群点时，这个假设怎样影响拟合结果？
-2. **概念**：两个特征几乎完全相关（相关系数 0.999）。分别描述 OLS、Ridge、Lasso 在这两个特征上的系数会是什么样子。
-3. **推导**：证明 Ridge 的有效自由度 $\mathrm{df}(\alpha) = \operatorname{tr}\!\big[X(X^\top X + \alpha I)^{-1}X^\top\big] = \sum_i \sigma_i^2/(\sigma_i^2 + \alpha)$，并说明 $\alpha \to 0$ 和 $\alpha \to \infty$ 时它的取值。
-4. **推导**：从一维问题 $\min_w \tfrac{1}{2}(w - z)^2 + t|w|$ 出发，推出软阈值算子 $S(z, t)$。
-5. **编程**：完成第 7 节的两个练习，使 `make ex M=04` 全部通过。然后回答：把 `fit_ols` 改成显式求解正规方程，哪个测试会失败？相对误差大约是多少？
-
-::: {.callout-tip collapse="true" title="答案与提示"}
-1. 最小化残差平方和等价于等方差高斯噪声下的最大似然。高斯分布的尾部衰减很快，离群点的似然极低，模型会为了“解释”它而大幅移动拟合线：残差被平方，一个 10 倍于典型残差的点的影响相当于 100 个普通点。对策是换用重尾噪声对应的损失，如 Huber 损失或绝对值损失。
-
-2. OLS：两个系数之和被数据很好地约束，之差几乎不受约束，可能出现一正一负且绝对值很大的系数。Ridge：两个系数接近相等，各承担约一半。Lasso：通常只保留其中一个，另一个为零，保留哪个对数据扰动敏感。
-
-3. 代入 SVD：$X(X^\top X + \alpha I)^{-1}X^\top = U\,\mathrm{diag}\big(\sigma_i^2/(\sigma_i^2+\alpha)\big)U^\top$，迹等于对角元之和。$\alpha \to 0$ 时为 $\operatorname{rank}(X)$，$\alpha \to \infty$ 时趋于 0。它衡量了模型实际使用的参数个数。
-
-4. $w > 0$ 时令导数 $w - z + t = 0$，得 $w = z - t$，要求 $z > t$。$w < 0$ 时得 $w = z + t$，要求 $z < -t$。$|z| \le t$ 时两种情况都不成立，最小点在不可导点 $w = 0$（此处次梯度条件 $z \in [-t, t]$ 成立）。合并即 $S(z, t) = \operatorname{sign}(z)\max(|z| - t, 0)$。
-
-5. `test_ols_is_accurate_on_ill_conditioned_design` 会失败。该测试的 $\kappa(X) \approx 10^7$，正规方程的条件数约 $10^{14}$，乘以机器精度 $10^{-16}$，相对误差量级在 $10^{-2}$ 左右，远超测试容差 $10^{-6}$。请实际改一下代码验证这个估计。
-:::
-
-## 11. 小结
+## 10. 小结
 
 - 最小二乘是把 $\mathbf{y}$ 正交投影到 $X$ 的列空间，也是等方差高斯噪声下的最大似然估计。
 - Ridge 按 $\sigma_i^2/(\sigma_i^2+\alpha)$ 收缩每个奇异方向，压制数据约束最弱的方向，对应高斯先验。
@@ -471,13 +452,13 @@ uv run pytest modules/04-classical-machine-learning/tests -k ridge   # 只跑名
 - 逻辑回归是 Bernoulli 似然下的线性模型，梯度为 $X^\top(\mathbf{p}-\mathbf{y})/n$，问题是凸的，可用 Newton 法（IRLS）求解。
 - 数值上：用 QR 或 SVD 而不是正规方程；先标准化再正则化；不惩罚截距。
 
-## 12. 我的笔记
+## 11. 我的笔记
 
 ::: {.callout-note .anno-note title="本章总结"}
 （由学习者本人填写。）
 :::
 
-## 13. 参考资料
+## 12. 参考资料
 
 - Hastie, T., Tibshirani, R., Friedman, J. *The Elements of Statistical Learning*, 2nd ed. Springer, 2009. <https://hastie.su.domains/ElemStatLearn/> `[待核实]`
 - James, G., Witten, D., Hastie, T., Tibshirani, R., Taylor, J. *An Introduction to Statistical Learning with Applications in Python*. Springer, 2023. <https://www.statlearning.com/>
