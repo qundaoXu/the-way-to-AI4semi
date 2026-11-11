@@ -1,0 +1,338 @@
+---
+id: M01.2
+title: 数据结构与算法（科学计算取向）
+subtitle: Data Structures and Algorithms for Scientific Computing
+module: M01
+priority: P0
+tags: []
+prereqs: [M01.1]
+anchors: []
+build_status: Draft          # 由 sync_index.py 从 curriculum.yaml 镜像，请勿手改
+learn_status: Not Started    # 学习者所有：Not Started / Reading / Practicing / Reviewed / Mastered
+evidence: []                 # 学习者所有：掌握证据（测试提交、复测记录等）
+next_review:                 # 学习者所有：下次复测日期
+last_reviewed: 2026-11-11
+code-fold: true
+code-summary: "显示绘图代码"
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import AQUA, BLUE, GRAY, INK, MUTED, ORANGE, SURFACE, use_style
+
+use_style()
+```
+
+## 0. 定位
+
+写过 MD 后处理脚本的人都遇到过这种情况：脚本在 500 个原子的测试构型上一秒跑完，换成 5 万个原子就跑一整夜。问题通常不在 Python 慢，而在算法的复杂度。本章用科学计算里真实出现的问题（周期性边界下的距离、邻居搜索、键网络的团簇和环）讲数据结构与算法：每种数据结构把哪类操作变便宜、代价是什么、在什么条件下会失效。
+
+## 1. 学习目标
+
+学完本章，你应当能够：
+
+- 用复杂度**估算**一段代码在体系放大 10 倍、100 倍时的耗时，并从 log–log 图上**读出** scaling 指数；
+- 根据操作类型**选择**数组、哈希表、堆、树、图中的合适结构，并**说明**它的代价；
+- **推导**最小镜像约定成立的条件，**判断**盒子太小时会出什么错；
+- **实现** cell list 邻居搜索，**解释**它为什么在固定密度下是 $O(N)$，并与 KD-tree、Verlet list **比较**；
+- 把原子构型**转化**为图，用连通分量、广度优先搜索和最短路**计算**团簇与环统计。
+
+## 2. 前置知识
+
+需要 M01.1 Python 进阶中的数据模型、迭代器和 `dict`/`set` 的用法。NumPy 的向量化与内存布局在 M01.5 高性能科学 Python 中系统讲解，本章只在需要时使用。
+
+符号：$N$ 是粒子数，$L$ 是立方盒子的边长，$\rho = N/L^3$ 是数密度，$r_c$ 是截断半径。复杂度记号 $O(\cdot)$ 表示渐近上界，只关心规模增大时的增长速度，不关心常数。
+
+## 3. 推荐阅读
+
+1. **Cormen, Leiserson, Rivest, Stein, *Introduction to Algorithms*（第 4 版，2022）**：第 3 章（运行时间的刻画与渐近记号）、第 6 章（堆排序与优先队列）、第 11 章（哈希表）、第 20 章（基本图算法：BFS、DFS、连通分量）、第 22 章（单源最短路径）。当作查阅手册，按需读对应章节，不必通读。
+2. **Allen, Tildesley, *Computer Simulation of Liquids*（第 2 版，2017）**：第 1 章中周期性边界条件与最小镜像的部分，第 5 章“Some tricks of the trade”中邻居列表（Verlet list）与 cell 结构的部分。这是本章领域例题的出处，伪代码可以直接对照。
+3. **SciPy 文档**：[`scipy.spatial.cKDTree`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.cKDTree.html) 与 [`scipy.sparse.csgraph`](https://docs.scipy.org/doc/scipy/reference/sparse.csgraph.html)。本章 notebook 用它们作为参考实现。
+
+## 4. 核心概念与直觉
+
+### 4.1 复杂度决定能算多大的体系
+
+先看一个最常见的需求：找出截断半径内的全部原子对。最直接的写法是双重循环，比较全部 $N(N-1)/2$ 对。体系放大 10 倍，计算量放大 100 倍。但每个原子真正的邻居数只取决于密度和截断，与 $N$ 无关：
+
+$$
+\langle n_c \rangle = \rho \cdot \tfrac{4}{3}\pi r_c^3 .
+$$ {#eq-nneigh}
+
+液体密度下 $r_c$ 取到第二配位壳层，$\langle n_c\rangle$ 也就几十个。双重循环做的绝大部分比较都在确认“这两个原子离得很远”，这是可以避免的浪费。
+
+::: {.column-margin}
+**类比**：复杂度之于算法，就像 scaling 之于电子结构方法。没人会说“DFT 比 CCSD(T) 快 3 秒”，而是说 $O(N^3)$ 对 $O(N^7)$。常数因子决定小体系的快慢，指数决定能算多大的体系。
+:::
+
+数据结构的作用，就是用一点额外的组织成本，把某类操作从“扫描全部”变成“只看相关的部分”。下表是本章用到的几种结构。
+
+| 结构 | 便宜的操作 | 代价 | 科学计算中的典型用途 |
+|---|---|---|---|
+| 数组（`ndarray`、`list`） | 按下标访问 $O(1)$；顺序扫描对缓存友好 | 成员查询、中间插入 $O(n)$ | 坐标、力、轨迹帧 |
+| 哈希表（`dict`、`set`） | 按键查找、插入平均 $O(1)$ | 内存更多；无序；键必须可哈希 | cell 编号 → 粒子列表；已访问集合 |
+| 堆（`heapq`） | 取最小元素 $O(\log n)$ | 只保证堆顶有序 | 最近 $k$ 个邻居；事件驱动模拟的事件队列 |
+| 树（KD-tree、平衡树） | 范围查询、最近邻 $O(\log n)$ | 建树 $O(n\log n)$；高维退化 | 非均匀密度下的邻居搜索 |
+| 图（邻接表、稀疏矩阵） | 遍历邻居 $O(\text{度})$ | 构建需要先有邻居对 | 键网络、团簇、环、反应网络 |
+
+排序是另一个基本工具。一次 $O(n\log n)$ 的排序之后，任意“小于某值的有几个”都只要一次 $O(\log n)$ 的二分查找。累积配位数 $n(r)$ 就是这样算的。
+
+### 4.2 最小镜像约定
+
+周期性边界条件下，粒子 $j$ 有无穷多个镜像。计算 $i$、$j$ 的相互作用时，正交盒子里只取最近的那个镜像，对每个分量 $\alpha$：
+
+$$
+\Delta_\alpha \leftarrow \Delta_\alpha - L_\alpha \,\mathrm{round}\!\left(\frac{\Delta_\alpha}{L_\alpha}\right),
+\qquad \Delta_\alpha \in \left[-\tfrac{L_\alpha}{2}, \tfrac{L_\alpha}{2}\right].
+$$ {#eq-minimage}
+
+@eq-minimage 只给出**一个**镜像。只要截断球内可能出现同一粒子的两个镜像，只取一个就会漏掉相互作用。所以它成立的条件是
+
+$$
+r_c \le \tfrac{1}{2} \min_\alpha L_\alpha .
+$$ {#eq-rc-half}
+
+三斜盒子要在分数坐标里做同样的折回，而且边长要换成晶胞相对两面之间的距离（面间距）。晶胞很“歪”时，按分数坐标折回的向量也不一定是最近镜像。这正是很多 MD 程序在盒子太小或过度剪切时直接报错的原因。
+
+### 4.3 cell list：只看相邻的格子
+
+@fig-cell-list 是 cell list 的二维示意。把盒子划分成边长 $\ell \ge r_c$ 的格子，先把每个粒子归入所在格子，这一步 $O(N)$。截断球不会越过相邻格子，所以对每个粒子只需检查自己格子和相邻格子（三维 27 个，二维 9 个）里的粒子。
+
+```{python}
+#| label: fig-cell-list
+#| fig-cap: "cell list 的二维示意。格子边长不小于截断半径 $r_c$（橙色圆），中心粒子（黑）只需与 3×3 个相邻格子（浅蓝底色）中的粒子比较，其中落在截断内的是橙色点；其余格子里的粒子不可能在截断内。周期性边界下，最外层格子的“相邻格子”在盒子另一侧。"
+#| fig-alt: "6×6 网格上分布着随机粒子，中心粒子周围 3×3 个格子被着色，一个圆表示截断半径。"
+rng = np.random.default_rng(4)
+m, ell = 6, 1.0
+pts = rng.uniform(0, m * ell, size=(70, 2))
+center = np.array([2.45, 3.4])
+r_c = 0.95
+
+fig, ax = plt.subplots(figsize=(4.6, 4.6))
+cx, cy = (center // ell).astype(int)
+for i in range(cx - 1, cx + 2):
+    for j in range(cy - 1, cy + 2):
+        ax.add_patch(plt.Rectangle((i * ell, j * ell), ell, ell, color=BLUE, alpha=0.12, lw=0))
+for k in range(m + 1):
+    ax.axhline(k * ell, color=GRAY, lw=0.8)
+    ax.axvline(k * ell, color=GRAY, lw=0.8)
+in_block = (np.abs(pts // ell - [cx, cy]) <= 1).all(axis=1)
+inside = np.linalg.norm(pts - center, axis=1) < r_c
+ax.scatter(*pts[~in_block].T, s=14, color=GRAY, zorder=3)
+ax.scatter(*pts[in_block & ~inside].T, s=18, color=BLUE, zorder=3)
+ax.scatter(*pts[inside].T, s=26, color=ORANGE, zorder=4)
+ax.scatter(*center, s=60, color=INK, zorder=5)
+ax.add_patch(plt.Circle(center, r_c, fill=False, color=ORANGE, lw=1.8, zorder=4))
+ax.text(center[0] + 0.05, center[1] + r_c + 0.08, r"$r_c$", color=ORANGE, fontsize=12)
+ax.set(xlim=(0, m * ell), ylim=(0, m * ell), aspect="equal", xticks=[], yticks=[])
+ax.grid(False)
+for s in ax.spines.values():
+    s.set_visible(False)
+plt.show()
+```
+
+固定密度时，每个格子里的平均粒子数是常数，于是每个粒子的比较次数是常数，总代价为
+
+$$
+T_{\text{all-pairs}} = \frac{N(N-1)}{2} = O(N^2),
+\qquad
+T_{\text{cell}} \approx \frac{27\,\rho\,\ell^3}{2}\,N = O(N).
+$$ {#eq-complexity}
+
+@eq-complexity 也给出了交叉点：两者相等时 $N^\ast \approx 27\rho\ell^3$，也就是 27 个格子里的粒子数。比这更小的体系，暴力法不吃亏，所以 MD 软件对很小的体系常常直接用全对循环。用 @fig-pair-count 的滑块改变截断半径，可以看到交叉点如何移动。
+
+```{python}
+#| label: fig-pair-count
+#| fig-cap: "固定密度 $\\rho=0.8$（约化单位）下，暴力法、cell list 需要计算的距离数，以及截断内真实邻居对数（交互图）。拖动滑块改变 $r_c$。cell list 的折线来自格子数取整：$L/r_c$ 每跨过一个整数，格子边长 $\\ell$ 就跳变一次。"
+import plotly.graph_objects as go
+
+from semiai.plotting import plotly_html, plotly_layout
+
+rho = 0.8
+Ns = np.unique(np.logspace(2, 6, 160).astype(int))
+r_values = [1.0, 1.5, 2.0, 2.5, 3.0]
+
+
+def cell_list_count(N, r_c):
+    L = (N / rho) ** (1 / 3)
+    m = np.floor(L / r_c)
+    ell = L / np.maximum(m, 1)
+    brute = N * (N - 1) / 2
+    return np.where(m >= 3, N * 27 * rho * ell**3 / 2, brute)
+
+
+fig = go.Figure()
+start = 1
+for k, r_c in enumerate(r_values):
+    vis = k == start
+    fig.add_scatter(x=Ns, y=Ns * (Ns - 1) / 2, mode="lines", name="暴力法 N(N−1)/2",
+                    line=dict(color=ORANGE, width=2.5), visible=vis)
+    fig.add_scatter(x=Ns, y=cell_list_count(Ns, r_c), mode="lines", name="cell list",
+                    line=dict(color=BLUE, width=2.5), visible=vis)
+    fig.add_scatter(x=Ns, y=Ns * rho * 4 / 3 * np.pi * r_c**3 / 2, mode="lines",
+                    name="真实邻居对", line=dict(color=AQUA, width=2, dash="dash"), visible=vis)
+
+titles = [f"r_c = {r:.1f}：每个粒子平均 {rho * 4 / 3 * np.pi * r**3:.1f} 个邻居，"
+          f"交叉点 N* ≈ 27ρr_c³ = {27 * rho * r**3:.0f}" for r in r_values]
+steps = [dict(method="update", label=f"{r:.1f}",
+              args=[{"visible": [j // 3 == k for j in range(3 * len(r_values))]},
+                    {"title.text": titles[k]}])
+         for k, r in enumerate(r_values)]
+fig.update_layout(**plotly_layout(
+    title=dict(text=titles[start], font=dict(size=13, color=MUTED), x=0.02),
+    xaxis=dict(title="粒子数 N", type="log", gridcolor="#e4e2da"),
+    yaxis=dict(title="需要计算的距离数", type="log", gridcolor="#e4e2da"),
+    sliders=[dict(active=start, steps=steps, currentvalue=dict(prefix="r_c = "), pad=dict(t=40))],
+    height=460, margin=dict(l=60, r=20, t=70, b=40),
+))
+plotly_html(fig)
+```
+
+cell list 比较的候选对里，只有一部分真的在截断内。$\ell = r_c$ 时这个比例是截断球体积与 27 个格子体积之比：
+
+$$
+\frac{\tfrac{4}{3}\pi r_c^3}{27\,r_c^3} = \frac{4\pi}{81} \approx 0.155 .
+$$ {#eq-efficiency}
+
+也就是说约 85% 的距离计算是白做的。这是 cell list 的常数因子，Verlet list 和更细的格子划分都是为了压低它（第 6 节）。
+
+### 4.4 原子构型就是一张图
+
+邻居对找到以后，把原子当作节点、把距离小于成键截断的原子对当作边，构型就变成了一张图。许多结构分析问题于是变成标准的图算法问题：
+
+- **团簇**：图的连通分量。用广度优先搜索（BFS）或并查集（union-find），代价 $O(V+E)$。晶核识别、析出相统计、导电通路是否贯通，都是这一步。
+- **最短路**：无权图用 BFS，带权图用 Dijkstra。可以用来定义网络中两个原子的“化学距离”，或团簇的直径。
+- **环统计**：非晶网络（a-Si、GeTe、SiO₂）的中程序常用环的大小分布描述。环的定义有多种，计数结果依赖定义。notebook 里用最简单的一种：删掉一根键，BFS 找两端点的最短路径，长度加 1 就是经过该键的最短环。
+
+::: {.column-margin}
+**为什么用稀疏矩阵存图**：$N$ 个原子的邻接矩阵有 $N^2$ 个元素，但每行只有约 $\langle n_c\rangle$ 个非零。CSR 稀疏格式只存非零元素，内存 $O(N)$。`scipy.sparse.csgraph` 直接在这种格式上做连通分量和最短路。这与紧束缚哈密顿量用稀疏矩阵存储是同一个道理。
+:::
+
+### 4.5 递归、分治、动态规划与贪心
+
+这四种是设计算法的思路，而不是具体的数据结构。**分治**把问题切成独立的子问题再合并：归并排序、KD-tree 的建树（按坐标中位数一分为二）、FFT 都是分治。**动态规划**用于子问题重叠的情况，把子问题的答案存表复用，例如轨迹对齐的动态时间规整（DTW）、隐马尔可夫模型的 Viterbi 解码。**贪心**每一步只做局部最优选择，只有在问题具备特定结构时才得到全局最优；Dijkstra 是贪心正确的例子，而“按能量从低到高逐个接受构型”这类贪心筛选往往不是。**递归**是实现手段，Python 默认递归深度上限为 1000，对一个上万原子的团簇做递归 DFS 会直接报 `RecursionError`，应改用显式栈或 BFS 队列。
+
+以面试为目标的刷题（各类经典题型的套路训练）属于 P2，不在本章展开。
+
+## 5. 数学原理
+
+### 5.1 渐近记号与“平均”复杂度
+
+$f(n) = O(g(n))$ 表示存在常数 $c$ 和 $n_0$，使 $n \ge n_0$ 时 $f(n) \le c\,g(n)$。实测时，在 log–log 坐标下画耗时对规模的曲线，斜率就是复杂度的指数：$T \propto N^k$ 时 $\log T = k\log N + \text{常数}$。拟合斜率要用足够大的 $N$，避开固定开销（解释器启动、内存分配）占主导的区间。
+
+有三种“复杂度”需要区分。**最坏情况**：哈希表在所有键都冲突时退化为 $O(n)$ 查找。**平均情况**：在哈希函数足够均匀的假设下，查找是 $O(1)$。**摊还**（amortized）：`list.append` 偶尔需要整体搬迁到更大的内存块，单次代价 $O(n)$，但容量按倍数增长，$n$ 次追加的总代价仍是 $O(n)$，平均每次 $O(1)$。NumPy 数组没有这种预留容量，循环里用 `np.append` 每次都复制整个数组，总代价 $O(n^2)$。
+
+### 5.2 cell list 与最小镜像的条件
+
+::: {.callout-note collapse="true" title="完整推导：cell list 为什么是 O(N)，以及它与最小镜像的配合条件"}
+**期望比较次数。** 每个方向分 $m = \lfloor L/r_c \rfloor$ 个格子，格子边长 $\ell = L/m \ge r_c$。粒子均匀分布时，一个格子里的期望粒子数为 $\rho\ell^3$。对每个粒子，候选邻居来自 27 个格子，期望个数 $27\rho\ell^3$。每对被两端各看到一次，所以候选对数为
+
+$$
+\tfrac{1}{2}\,N \cdot 27\rho\ell^3 .
+$$
+
+固定密度下，$m$ 随 $N$ 增大而增大，$\ell$ 落在 $[r_c, r_c\cdot\tfrac{m+1}{m}]$ 之间，趋近于 $r_c$。所以候选对数是 $O(N)$，加上分配格子的 $O(N)$，总代价 $O(N)$，即 @eq-complexity。
+
+**为什么至少需要 3 个格子。** 若 $m \le 2$，某个格子的“左邻”和“右邻”在周期性下是同一个格子，同一对粒子会被枚举两次。实现上要么去重，要么在 $m < 3$ 时直接退回暴力法（notebook 采用后者）。
+
+**与最小镜像的关系。** 两个相邻格子里的粒子，其最小镜像位移的每个分量不超过 $2\ell$。当 $m \ge 3$ 时 $L \ge 3\ell \ge 3r_c$，自然满足 @eq-rc-half 的 $r_c \le L/2$。反过来，若 $r_c > L/2$，存在某些粒子对 $(i,j)$ 使 $j$ 的两个镜像 $\mathbf{r}_j$ 与 $\mathbf{r}_j - L\hat{\mathbf{e}}_\alpha$ 到 $i$ 的距离都小于 $r_c$：只要 $i$、$j$ 在 $\alpha$ 方向上相距接近 $L/2$，两个镜像到 $i$ 的距离都约为 $L/2 < r_c$。这时任何只取一个镜像的方法都会漏算。
+
+**非均匀密度。** 推导假设了均匀分布。界面、团簇、真空层等体系里，少数格子可能挤着大量粒子，最坏情况退化到 $O(N^2)$。KD-tree 按数据本身的分布划分空间，对这种情况更稳健。
+:::
+
+### 5.3 图算法的代价
+
+BFS 从一个节点出发，每个节点入队一次，每条边检查两次，代价 $O(V+E)$。对全图依次从未访问节点启动 BFS，就得到全部连通分量，总代价仍是 $O(V+E)$。键网络中 $E \approx \tfrac{1}{2}\langle n_c\rangle V$，所以团簇分析与原子数成线性。Dijkstra 用堆维护“当前最近的未确定节点”，代价 $O((V+E)\log V)$。在 notebook 的环统计中，对每根键做一次深度受限的 BFS：深度上限为 $d$ 时每次只访问局部的 $O(\langle n_c\rangle^{d})$ 个节点，总代价 $O(E)$ 乘以一个与 $N$ 无关的常数。
+
+## 6. 算法与实现要点
+
+**cell list 的实现骨架**：
+
+```text
+m ← floor(L / r_c)；若 m < 3，退回暴力法
+cell[i] ← floor(r_i / (L/m)) mod m            # 先把坐标折回盒内
+用 dict 把 cell 编号映射到粒子下标数组        # 或按 cell 编号排序后记录分段边界
+对每个非空格子 A、对 27 个偏移得到格子 B（取模）：
+    计算 A 中粒子与 B 中粒子的最小镜像距离
+    只保留 i < j 且 r < r_c 的对
+```
+
+用 NumPy 时，内层“格子对之间的全部距离”可以向量化，Python 循环只在格子层面。生产代码（LAMMPS、ASE、JAX-MD 等）把整个过程编译执行，并常用“按 cell 编号排序 + 分段”代替 `dict`，以获得连续内存访问。
+
+**Verlet list。** MD 中邻居关系逐步缓慢变化。Verlet list 用 $r_c + r_{\text{skin}}$ 建一次邻居表，之后若干步只在表内计算距离；当任一粒子位移超过 $r_{\text{skin}}/2$ 时重建。它与 cell list 配合使用：cell list 负责 $O(N)$ 地重建邻居表，Verlet list 负责压低每步的常数因子。skin 太小重建频繁，太大候选对过多，是一个需要按体系调整的参数。
+
+**KD-tree。** `scipy.spatial.cKDTree` 支持 `boxsize` 参数，直接处理正交周期盒子。它要求坐标落在 $[0, L)$ 内，否则抛出 `ValueError`，所以先把坐标折回盒内。三斜盒子不能直接传 `boxsize`。
+
+| 方法 | 构建 | 一次全邻居查询 | 适用情况 |
+|---|---|---|---|
+| 暴力法 | — | $O(N^2)$ | $N$ 小于几千；验证其他实现 |
+| cell list | $O(N)$ | $O(N)$（均匀密度） | 均匀体系；MD 每步重建 |
+| Verlet list + cell list | $O(N)$ | $O(N)$，常数更小 | MD 主循环 |
+| KD-tree | $O(N\log N)$ | $O(N\log N)$ 左右 | 非均匀密度；后处理；近邻查询 |
+
+**数值细节。** `np.floor(r / ell)` 在坐标恰好等于 $L$ 时会得到 $m$，必须再对 $m$ 取模。`np.round` 采用“四舍六入五成双”，在位移恰好为 $\pm L/2$ 时选哪个镜像都对，但两次运行之间若坐标有舍入差异，结果可能在两个镜像间跳动，比较邻居对集合时要留意这种边界情形。
+
+## 7. 实例 Notebook
+
+本章代码讲解在 [notebooks/02-data-structures-algorithms.ipynb](../notebooks/02-data-structures-algorithms.ipynb)，包含从零写的 cell list（Level 1）与 SciPy 参考实现（Level 2）的对照：
+
+| 节 | 内容 | 对应讲义 |
+|---|---|---|
+| 1 | `list` 与 `set` 的成员查询耗时比随 $n$ 线性增长 | 4.1 |
+| 2 | 最小镜像与 27 镜像暴力枚举一致；$r_c > L/2$ 时出现多镜像 | 4.2、@eq-rc-half |
+| 3 | 暴力法、cell list、`cKDTree` 给出完全相同的邻居对，平均邻居数与 @eq-nneigh 吻合 | 4.3 |
+| 4 | 三种实现的实测 scaling 斜率 | @eq-complexity |
+| 5 | 排序 + 二分查找求累积配位数；堆取最近 $k$ 个邻居 | 4.1 |
+| 6 | 键网络的连通分量与逾渗；BFS 求经过每根键的最短环 | 4.4、5.3 |
+
+在 VS Code 中打开后选择仓库 `.venv` 的内核，从上到下运行即可，全部单元约半分钟。改动后用 `make nb M=01` 重新执行并保存输出。
+
+## 8. 领域连接
+
+**MD 引擎的邻居表。** LAMMPS 的 `neighbor` 与 `neigh_modify` 命令设置的正是 Verlet skin 和重建频率；ASE 的邻居表工具和 MLIP 训练框架中的“构图”步骤（按截断半径把构型转成图）也是同一套 cell list 或 KD-tree 算法。MLIP 推理时间里，构图在小模型上可能占相当比例，体系放大时更明显。
+
+**大体系电子结构。** 本模块的锚点 A4 关心大尺度无序体系的电子结构。紧束缚或线性标度方法要先构造稀疏的哈密顿量矩阵：只有截断内的原子对才有非零矩阵元，这一步就是邻居搜索，而矩阵的稀疏格式（CSR）与图的邻接表是同一种数据结构。邻居搜索若是 $O(N^2)$，几十万原子的体系在建矩阵这一步就卡住了。
+
+**非晶与相变材料的结构分析。** 非晶 GeTe、GST 的结构常用配位数分布、键角分布和环统计描述，析出与晶化过程用团簇分析跟踪晶核大小。这些都建立在“截断 → 键网络 → 图算法”的流程上。成键截断通常取在 RDF 第一个极小值处，但结果对截断敏感，notebook 第 6 节演示了截断附近的分布尾部如何制造出虚假的环。
+
+## 9. 常见误区与失败模式
+
+::: {.callout-warning title="只比较邻居对的数量，不比较邻居对本身"}
+两个邻居搜索实现给出相同的对数，不代表它们找到的是同一批对：漏掉一些、重复一些，数量可能恰好相等。验证新实现时，要把邻居对排序成 $(i<j)$ 形式后逐对比较集合，并在小盒子、粒子靠近边界、$m$ 恰好为 3 等边界情形下测试。
+:::
+
+其余常见问题：
+
+- 在循环里对 `list` 做 `in`，或在循环里 `np.append`：隐藏的 $O(n^2)$。
+- 截断半径超过半个盒长仍使用最小镜像，或者对三斜盒子直接套用正交盒子的公式。
+- cell list 的格子数少于 3 时没有去重，邻居对被重复计数，能量和力被高估。
+- 对大团簇做递归 DFS，触发 Python 的递归深度上限。
+- 用 KD-tree 处理周期体系时忘记 `boxsize`，或坐标没有折回盒内。
+- 把环统计的数字与文献直接比较，而没有核对环的定义和成键截断。
+- 只在小体系上计时就下结论：小 $N$ 时常数因子主导，复杂度的差别要在更大的 $N$ 上才显现。
+
+## 10. 小结
+
+- 复杂度决定代码能处理多大的体系；在 log–log 图上看斜率，而不是看某一个规模下的绝对耗时。
+- 哈希表把查找变成平均 $O(1)$，堆把“取最小”变成 $O(\log n)$，排序后二分查找把阈值计数变成 $O(\log n)$。
+- 最小镜像在 $r_c \le L/2$（三斜盒子用面间距）时成立，否则同一对粒子可能有多个镜像在截断内。
+- 固定密度下 cell list 是 $O(N)$，约 85% 的候选距离落在截断外；Verlet list 压低常数，KD-tree 适合非均匀密度。
+- 原子构型可以转为稀疏图：连通分量给出团簇和逾渗，BFS 与最短路给出化学距离和环。
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::
+
+## 12. 参考资料
+
+- Cormen, T. H., Leiserson, C. E., Rivest, R. L., Stein, C. *Introduction to Algorithms*, 4th ed. MIT Press, 2022. <https://mitpress.mit.edu/9780262046305/introduction-to-algorithms/> `[待核实]`（出版社页面拒绝自动访问；第 6、11、20、22 章的标题与起始页经书商目录核对，第 3 章标题未核实）
+- Allen, M. P., Tildesley, D. J. *Computer Simulation of Liquids*, 2nd ed. Oxford University Press, 2017. ISBN 978-0-19-880319-5. `[待核实]`（第 5 章标题“Some tricks of the trade”已核对，邻居列表所在的小节编号未核实）
+- SciPy 文档：`scipy.spatial.cKDTree`。<https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.cKDTree.html>
+- SciPy 文档：`scipy.sparse.csgraph`。<https://docs.scipy.org/doc/scipy/reference/sparse.csgraph.html>
+- Franzblau, D. S. Computation of ring statistics for network models of solids. *Phys. Rev. B* **44**, 4925 (1991). `[待核实]`
