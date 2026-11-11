@@ -81,3 +81,4 @@ library/
 
 /.quarto/
 **/*.quarto_ipynb
+.claude/worktrees/
