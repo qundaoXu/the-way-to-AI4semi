@@ -1,0 +1,171 @@
+---
+id: M03.6
+title: 实验设计（DOE）
+priority: P1
+tags: []
+prereqs:
+- M02.4
+anchors: []
+subtitle: Design of Experiments
+module: M03
+build_status: Draft
+learn_status: Not Started
+evidence: []
+next_review: null
+last_reviewed: '2026-11-11'
+code-fold: true
+code-summary: 显示绘图代码
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import BLUE, use_style
+
+use_style()
+rng = np.random.default_rng(42)
+```
+
+## 0. 定位
+
+实验设计（Design of Experiments, DOE）是在消耗预算之前决定哪些输入最能回答问题。它把因子、噪声、交互作用和拟合模型放在同一张设计表中，而不是先随意采样再期待回归补救。本章从二水平因子设计走向局部响应面与空间填充采样，区分筛选、解释、优化和代理模型覆盖这几种不同目的。
+
+## 1. 学习目标
+
+- 用编码因子构建设计矩阵，解释主效应、交互项、随机化、区组与重复。
+- 根据预算说明全因子与部分因子设计的取舍，识别混杂和分辨率。
+- 用中心点、轴点和二次模型刻画局部曲率，核验驻点的类型与可行范围。
+- 检查拉丁超立方的边缘分层性质，并区分预先设计与序贯采样。
+
+## 2. 前置知识
+
+[M02.4 数理统计](../../02-mathematics-statistics/notes/04-mathematical-statistics.qmd)
+
+最小二乘的数值求解见 [M02.1](../../02-mathematics-statistics/notes/01-linear-algebra.qmd)，统计推断与重复观测见 [M02.4](../../02-mathematics-statistics/notes/04-mathematical-statistics.qmd)。本章是 DOE 与响应面的主要归属；主动学习和贝叶斯优化在 M06.5 系统展开。
+
+## 3. 推荐阅读
+
+1. NIST/SEMATECH [5.3 Choosing an experimental design](https://www.itl.nist.gov/div898/handbook/pri/section3/pri3.htm)，按 5.3.1 目标、5.3.2 因子与水平、5.3.3 设计类型的顺序阅读，重点全因子、随机区组与中心点。
+2. NIST [5.3.3.4 Fractional factorial designs](https://www.itl.nist.gov/div898/handbook/pri/section3/pri334.htm) 下的 half-fraction、confounding、resolution；[5.3.3.6 Response surface designs](https://www.itl.nist.gov/div898/handbook/pri/section3/pri336.htm) 下的中心复合与 Box–Behnken 设计。
+3. SciPy [LatinHypercube](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.qmc.LatinHypercube.html)，重点边缘分层、strength、随机源和后处理可能改变性质的说明。
+
+## 4. 核心概念与直觉
+
+### 4.1 从研究问题定义因子
+
+因子是可控输入，水平是计划尝试的取值，响应是最终关心的输出。温度、工艺时间或算法超参数可以是因子，但需要说明范围与编码；批次、设备和日期可能是噪声或区组。随机化运行顺序帮助避免时间漂移与某个因子完全重合，区组则把已知系统差异显式分离。重复同一设置估计噪声，重复测量同一对象还需考虑测量相关。
+
+逐次只改变一个因子容易遗漏交互作用。例如 A 的效果会随 B 的高低反向，沿一条固定 B 的扫描线无法概括整个区域。全因子设计组合所有水平，使主效应和交互作用有机会被分开；它的成本随因子数指数增长，所以筛选阶段常用部分因子设计，并明确依赖哪些高阶项可忽略的假设。
+
+### 4.2 空间填充不等于解释效应
+
+因子设计围绕指定模型的可识别性安排点，LHS 则强调每个输入边缘的均匀覆盖，常用于计算机实验与代理模型初始样本。@fig-core 的两种方案具有相同点数；LHS 避免某一维的大段空白，但二维覆盖仍有随机性。图上均匀不等于对未知函数最优，更不等于所有交互都能估计。
+
+```{python}
+#| label: fig-core
+#| fig-cap: "25 个二维设计点的随机采样与 LHS 对照。坐标均归一化到单位区间；单次点集只展示边缘覆盖机制，不提供普遍性能排名。"
+#| fig-alt: '随机点集与拉丁超立方点集的二维覆盖比较'
+from scipy.stats import qmc
+random_points=rng.uniform(size=(25,2))
+lhs=qmc.LatinHypercube(d=2,rng=np.random.default_rng(42)).random(25)
+fig,axes=plt.subplots(1,2,figsize=(6.8,3),sharex=True,sharey=True)
+for ax,points,title in zip(axes,[random_points,lhs],["独立均匀随机","拉丁超立方"],strict=True):
+    ax.scatter(points[:,0],points[:,1],s=19,color=BLUE)
+    ax.set(xlim=(0,1),ylim=(0,1),xlabel="归一化因子 A",title=title)
+axes[0].set_ylabel("归一化因子 B")
+fig.tight_layout();plt.show()
+```
+
+::: {.column-margin}
+**重复的对象**：同一初态重新随机速度、同一参数重新运行独立实验、对同一输出重复读数，估计的是不同噪声来源。设计表中应保存重复层级与随机种子。
+:::
+
+## 5. 数学原理
+
+### 5.1 设计矩阵决定能否区分效应
+
+二水平因子编码为 ±1，响应模型可写为
+
+$$
+y=\beta_0+\sum_j\beta_jx_j+\sum_{j<k}\beta_{jk}x_jx_k+\varepsilon,\qquad
+\operatorname{Cov}(\hat{\boldsymbol\beta})=\sigma^2(\mathbf X^\top\mathbf X)^{-1}.
+$$ {#eq-design-covariance}
+
+@eq-design-covariance 的协方差式要求模型正确、独立同方差噪声且设计矩阵满列秩。正交列便于分离系数；列相关增加估计不稳定性，完全相同则不可辨识。±1 编码下主效应系数是高低水平平均差的一半，报告时必须说明效应的定义。
+
+::: {.callout-note collapse="true" title="半分数设计如何产生别名"}
+三个因子的半分数取 C=AB，于是 ABC=I。两边乘 A 得 A=BC，乘 B 得 B=AC，乘 C 得 C=AB。主效应与二因子交互在设计点上具有相同列，任何回归算法都无法单独估计它们。这是设计的信息缺失，不是求解精度不足。
+:::
+
+### 5.2 响应面是局部模型
+
+二次响应面包含常数、线性、交互和平方项。二水平角点上的 x_j² 恒为一，无法独立估计每个方向曲率；中心点可检测整体曲率，却不足以分离各平方系数，通常还需轴点或其他多水平设计。中心复合设计通过角点、轴点和中心重复提供这些信息，轴点是否落在允许范围内必须提前检查。
+
+求解梯度为零得到驻点后，还要检查 Hessian：正定对应局部极小，负定对应极大，不定是鞍点。局部二次拟合在采样范围之外不可靠，即使代数最优点存在，也应回到可行域并进行确认运行。噪声、失拟与边界约束都可能改变实际最优设置。
+
+## 6. 算法与实现要点
+
+先列出响应、因子范围、硬约束、噪声来源与预算，再选择筛选或精细建模方案。运行前检查设计矩阵的秩、条件数和别名关系；运行后保留实际参数、运行顺序、失败原因与区组。删除失败实验会改变设计平衡，不能当作随机少几行而不重新检查可识别性。
+
+@fig-interactive 固定一个二次响应面，切换 B 的水平查看 A 的响应。曲线最优位置随 B 移动，直观展示交互作用。初始 DOE 可以给序贯方法提供覆盖；主动学习按模型不确定性或信息目标选点，贝叶斯优化围绕目标最优值选点。三者可以组合，但选点标准、预算和验证方式应分别说明。
+
+```{python}
+#| label: fig-interactive
+#| fig-cap: "固定合成二次响应面的切片，交互项使 A 的最佳位置依赖 B。"
+import plotly.graph_objects as go
+from semiai.plotting import plotly_html, plotly_layout
+
+slider_x=np.linspace(-1.5,1.5,200)
+slider_ys=[2-slider_x+.8*b+.4*slider_x*b+1.5*slider_x**2+b*b for b in [-1,0,1]]
+values = [-1,0,1]
+fig = go.Figure()
+for i, value in enumerate(values):
+    fig.add_scatter(x=slider_x, y=slider_ys[i], mode="lines", name=f"因子 B = {value}",
+                    line=dict(color=BLUE, width=2), visible=(i == 0))
+steps = [dict(method="update", label=str(value),
+              args=[{"visible": [j == i for j in range(len(values))]},
+                    {"title.text": f"因子 B = {value}"}])
+         for i, value in enumerate(values)]
+fig.update_layout(**plotly_layout(
+    title=dict(text=f"因子 B = {values[0]}", font=dict(size=14)),
+    xaxis=dict(title='编码因子 A'), yaxis=dict(title='合成响应'),
+    sliders=[dict(active=0, steps=steps, currentvalue=dict(prefix='因子 B = '))],
+    showlegend=False, height=400,
+))
+plotly_html(fig)
+```
+
+## 7. 实例 Notebook
+
+打开 [M03.6 实例讲解](../notebooks/06-design-of-experiments.ipynb)。在 VS Code 中选择仓库 `.venv` 内核，按顺序运行；每节按“说明 → 代码 → 输出 → 读法”组织。所有数据均为合成体系，数值比较直接打印误差或指标，图与表来自实际计算。重新执行并保存输出：`make nb M=03`。
+
+| 节 | 内容 | 输出读法 |
+|---|---|---|
+| 1 | 1. 全因子设计与交互项 | ±1 编码中的主效应系数是高低水平平均差的一半；交互项表示一个因子的作用依赖另一个因子 |
+| 2 | 2. 半分数设计与混杂 | 这是分辨率 III 设计，主效应与二因子交互混杂；即使输出没有噪声，也不能从这四点唯一分离它们 |
+| 3 | 3. 二次响应面与解析最优点 | 无噪声、模型正确时可恢复解析结果；重复中心点用于有噪声实验的纯误差估计，本例重复并不会创造新的设计秩 |
+| 4 | 4. LHS 边缘分层与覆盖检查 | LHS 保证一维边缘分层，不保证所有二维格子被填满，也不自动满足物理可行约束 |
+
+## 8. 领域连接
+
+模拟参数扫描与半导体工艺实验都可受益于“先看设计能否回答问题”。若目标是局部灵敏度，正交因子设计比随意散点更易解释；若目标是跨广范围拟合代理模型，LHS 可作为起点，但要尊重相区、结构稳定性和实际可行域。这里全部使用合成响应，不把模型系数解释成某种真实材料的效应。
+
+## 9. 常见误区与失败模式
+
+- 在饱和设计上给出噪声方差和显著性结论；没有剩余自由度就需要额外重复或假设。
+- 忽略部分因子的别名关系，把混杂系数当作独立物理作用。
+- 把 LHS 理解成完整多维分层；它保证的是一维边缘，而不是所有组合。
+- 直接部署拟合驻点，未检查可行域、曲率和确认实验。
+
+## 10. 小结
+
+DOE 用有限预算换取可解释的信息结构。设计矩阵决定哪些效应可分，重复与随机化约束噪声解释，响应面提供局部曲率，LHS 提供边缘覆盖。先定义问题，再检查设计，最后用独立确认运行核验结论。
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::

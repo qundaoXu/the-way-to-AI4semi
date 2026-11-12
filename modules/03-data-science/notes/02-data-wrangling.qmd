@@ -1,0 +1,186 @@
+---
+id: M03.2
+title: 数据处理
+priority: P0
+tags:
+- FT
+prereqs:
+- M03.1
+anchors: []
+subtitle: Data Wrangling
+module: M03
+build_status: Draft
+learn_status: Not Started
+evidence: []
+next_review: null
+last_reviewed: '2026-11-11'
+code-fold: true
+code-summary: 显示绘图代码
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import BLUE, GRAY, use_style
+
+use_style()
+rng = np.random.default_rng(42)
+```
+
+## 0. 定位
+
+数据处理不是把缺失值全部填满、把所有列变成数字，而是把原始记录转化为具有明确观测单位、类型和变换规则的分析表。本章用 pandas 的索引与关联机制串起 tidy data、缺失值、异常值和预处理。读者已经能写数据脚本，因此重点放在会静默改变统计含义的地方，而不是逐项列出 API。
+
+## 1. 学习目标
+
+- 定义一行观测的粒度和稳定键，正确完成长宽表变换与基数可验证的关联。
+- 区分索引对齐和位置运算，选择保持行粒度的聚合或变换。
+- 根据缺失和异常的生成机制提出处理方案，说明不能由数据直接识别的假设。
+- 把填补、缩放和类别编码组织成可重复的拟合与变换流程，并解释数值尺度的影响。
+
+## 2. 前置知识
+
+[M03.1 数据获取与存储](01-data-acquisition-storage.qmd)
+
+读取 schema、单位和稳定标识符后，再进行本章的清洗。数据集如何分成训练与评估部分，以及完整流程的数据泄漏，主要归属后续 M03.4；这里先规定每个变换必须区分 `fit` 得到的状态与 `transform` 使用的状态。
+
+## 3. 推荐阅读
+
+1. pandas 官方 [Merge, join, concatenate and compare](https://pandas.pydata.org/docs/user_guide/merging.html)，重点 `merge`、`validate`、索引关联；[Reshaping and pivot tables](https://pandas.pydata.org/docs/user_guide/reshaping.html) 的 `melt`、`pivot`、`pivot_table`，关注何时进行了聚合。
+2. pandas 官方 [Working with missing data](https://pandas.pydata.org/docs/user_guide/missing_data.html)，重点可空类型、缺失掩码、传播和填补行为。版本变化可能影响默认 dtype，实际示例以锁文件环境为准。
+3. scikit-learn 官方 [Preprocessing data](https://scikit-learn.org/stable/modules/preprocessing.html)，重点 StandardScaler、RobustScaler、OneHotEncoder；配合 ColumnTransformer 和 Pipeline 阅读不同列的状态管理。
+
+## 4. 核心概念与直觉
+
+### 4.1 行粒度先于 DataFrame 操作
+
+同一个样本可以有多温度、多时间、多种测量，因而“每个样本一行”和“每次观测一行”是不同的表。tidy data 要求每个变量一列、每个观测一行、每种观测单位一张表，但变量与观测的划分仍需领域定义。把原子级力和结构级能量简单合并到同一平表，会重复结构级信息并隐式改变权重。
+
+`melt` 将多列观测展开成长表，`pivot` 要求索引与列标签组合唯一，`pivot_table` 则允许通过聚合解决重复。后者成功运行不代表重复已得到合理处理，默认均值可能抹掉本应保留的重复实验差异。每次重塑后都应检查键唯一性、行数和聚合前后的总量关系。
+
+### 4.2 标签对齐是一种隐式关联
+
+pandas 的 Series 运算通常按索引标签对齐，NumPy 则按形状和位置计算。排序、筛选或重置索引之后混用两者，可能不会报错，却把不同观测配对。赋值前应确认是按标签对齐，还是明确希望按位置写入。`loc` 表达标签选择，`iloc` 表达位置选择，两者的含义不能依靠恰好相同的整数索引掩盖。
+
+`groupby().agg()` 每组返回汇总，`transform()` 把组统计量广播回原行。前者改变粒度，后者保留粒度。描述性地做组内中心化很方便，但若组统计来自预测时不可获得的未来或目标信息，它就不再是可部署的特征；完整划分协议在 M03.4 讨论。
+
+### 4.3 缺失是一种观测过程
+
+MCAR 表示缺失与数据独立；MAR 表示给定已观测变量后，缺失不再依赖未观测值；MNAR 则仍依赖缺失值本身或其他未观测因素。这些机制通常不能仅靠当前观测表完全区分。某个传感器超过量程时不再输出，与随机通信丢包具有完全不同的含义，不能只因为都显示 NaN 就使用同一种解释。
+
+@fig-core 让缺失概率依赖测量值，观测分布因此偏移。完整案例分析和均值填补都可能改变总体统计；缺失指示变量有时能保留信息，但也可能编码设备、批次或采集流程的差异，必须结合部署场景解释。
+
+```{python}
+#| label: fig-core
+#| fig-cap: "在合成数据中让较大的值更容易缺失后，观测分布与均值偏离完整总体。"
+#| fig-alt: '完整正态样本与依赖数值缺失后的观测直方图及各自均值。'
+raw=rng.normal(size=14000)
+missing=rng.random(len(raw))<1/(1+np.exp(-1.8*raw))
+observed=raw[~missing]
+fig,ax=plt.subplots(figsize=(6.8,3.1))
+bins=np.linspace(-4,4,48)
+ax.hist(raw,bins=bins,density=True,histtype="step",color=GRAY,lw=1.6,label="完整合成总体")
+ax.hist(observed,bins=bins,density=True,histtype="step",color=BLUE,lw=1.6,label="非随机缺失后观测")
+ax.axvline(raw.mean(),color=GRAY,ls="--",lw=.8)
+ax.axvline(observed.mean(),color=BLUE,ls="--",lw=.8)
+ax.set(xlabel="原始测量值",ylabel="概率密度");ax.legend()
+fig.tight_layout();plt.show()
+```
+
+::: {.column-margin}
+**材料数据中的语义差异**：未收敛计算、未测量性质、低于检测限和结构本身不适用某个字段，不能都解释为同一种“空值”。保留原因字段常比立即填补更有用。
+:::
+
+## 5. 原理与设计取舍
+
+### 5.1 缺失传播与类型
+
+浮点 NaN 不等于零，也不等于自身；可空整数和布尔类型使用专门的缺失标记，逻辑运算可能产生“未知”。因此筛选应使用 `isna()` 等明确掩码，而不是 `x == NaN`。整数列混入缺失值后若被自动转为浮点，标识符和大整数精度可能受影响。类型应从数据契约而来，不能为了让某个算子成功就随意转换。
+
+均值或中位数填补会在一个值上堆积概率质量，并压低方差、改变协方差。更复杂的条件填补需要额外模型和假设，也应在训练部分估计。若要表达不确定性，单次确定性填补不足以代表缺失带来的全部波动。
+
+### 5.2 缩放是在改变几何
+
+标准缩放为
+
+$$
+z_j=\frac{x_j-\hat\mu_j}{\hat s_j},\qquad
+\lVert\mathbf z_a-\mathbf z_b\rVert^2=\sum_j\frac{(x_{aj}-x_{bj})^2}{\hat s_j^2}.
+$$ {#eq-scaling-geometry}
+
+@eq-scaling-geometry 表明标准化改变了不同特征对距离的贡献。它影响最近邻、核方法和带正则的线性模型，不能把它当作对所有模型都无影响的单位变换。StandardScaler 常用总体方差约定估计尺度；RobustScaler 使用中位数和分位区间，对少数极端值较稳健，但也改变了特征权重。常数列和极小尺度列需要单独检查。
+
+::: {.callout-note collapse="true" title="为什么不能把类别直接编码成连续整数"}
+若把设备类别 A、B、C 编成 0、1、2，使用线性模型或欧氏距离的算法会把类别之间解释成有顺序、有等间距的数值。One-hot 使用独立指示列，避免凭编码引入大小关系。真正有序的类别可以使用有序编码，但间距仍需定义。未知类别、缺失类别和被删除的基准列要有不同协议，否则全零向量可能产生多重含义。
+:::
+
+### 5.3 异常值处理与数据证据
+
+异常可能是录入错误，也可能是罕见但真实的物理状态。IQR 或 Z-score 只能提供筛查信号，不能自动决定删除。检查原始记录、单位、仪器量程和关联字段后，再区分修正、缺失标记、稳健估计或保留。删除规则应被记录并在训练和部署中一致应用，而不是看到模型误差大就事后剔除困难样本。
+
+## 6. 算法与实现要点
+
+优先用列运算、映射和组操作表达数据变换；逐行 `apply` 常把工作送回 Python 循环，也容易模糊类型。数据量大时先做列裁剪、分区过滤和合适 dtype，再决定是否分块。比较速度之前，先验证不同实现得到同样的键、行顺序和数值结果。
+
+@fig-interactive 改变一个极端观测的大小，显示固定正常区间在标准缩放后如何被压缩。曲线由实际样本均值和尺度计算，不代表某个模型的预测性能；它帮助解释异常值如何通过预处理影响整个特征空间。
+
+```{python}
+#| label: fig-interactive
+#| fig-cap: "只改变一个额外观测，展示它通过均值和标准差影响正常数据的缩放。"
+import plotly.graph_objects as go
+from semiai.plotting import plotly_html, plotly_layout
+
+slider_x=np.linspace(-3,3,160)
+reference=rng.normal(size=1000)
+slider_ys=[(slider_x-np.r_[reference,outlier].mean())/np.r_[reference,outlier].std() for outlier in [0.,5.,20.,100.]]
+values = [0.,5.,20.,100.]
+fig = go.Figure()
+for i, value in enumerate(values):
+    fig.add_scatter(x=slider_x, y=slider_ys[i], mode="lines", name=f"额外极端值 = {value}",
+                    line=dict(color=BLUE, width=2), visible=(i == 0))
+steps = [dict(method="update", label=str(value),
+              args=[{"visible": [j == i for j in range(len(values))]},
+                    {"title.text": f"额外极端值 = {value}"}])
+         for i, value in enumerate(values)]
+fig.update_layout(**plotly_layout(
+    title=dict(text=f"额外极端值 = {values[0]}", font=dict(size=14)),
+    xaxis=dict(title='正常输入区间'), yaxis=dict(title='标准缩放后的值'),
+    sliders=[dict(active=0, steps=steps, currentvalue=dict(prefix='额外极端值 = '))],
+    showlegend=False, height=400,
+))
+plotly_html(fig)
+```
+
+## 7. 实例 Notebook
+
+打开 [M03.2 实例讲解](../notebooks/02-data-wrangling.ipynb)。在 VS Code 中选择仓库 `.venv` 内核，按顺序运行；每节按“说明 → 代码 → 输出 → 读法”组织。所有数据均为合成体系，数值比较直接打印误差或指标，图与表来自实际计算。重新执行并保存输出：`make nb M=03`。
+
+| 节 | 内容 | 输出读法 |
+|---|---|---|
+| 1 | 1. tidy data、索引与关联基数 | 重塑保留了观测键；索引对齐按标签而非位置 |
+| 2 | 2. 缺失机制与完整案例偏差 | 依赖未观测值的缺失会改变可见总体；均值填补不能仅凭观测数据恢复丢失部分 |
+| 3 | 3. 训练数据拟合预处理，统一变换接口 | 测试中的极值没有改变训练尺度；未知类别被编码为该类别块的全零，需要明确它与缺失类别或基准类别的区别 |
+| 4 | 4. 向量化、组内变换与异常值敏感性 | transform 保留逐行粒度并按索引对齐；标准缩放对均值和方差敏感，稳健缩放使用中位数和四分位距 |
+
+
+## 8. 领域连接
+
+科学数据清洗需要保留结构级、原子级和时间级观测的关系。稳定键、明确单位、缺失原因和可追踪变换，使后续分布分析与模型比较具有可靠输入。异常检测算法在 M04.6 展开，这里只负责处理协议与统计含义。
+
+## 9. 常见误区与失败模式
+
+把 `pivot_table` 的默认聚合当作无损重塑、忽略索引对齐、在关联后不检查行数，都会静默改变数据。缺失填成零可能引入虚假物理状态；把所有极端值删除又可能丢掉最重要的少数情况。可运行的清洗代码仍需语义检查。
+
+## 10. 小结
+
+先定义观测粒度和 schema，再做关联与重塑；先解释缺失和异常的来源，再选择填补或删除。缩放与编码决定模型看到的几何，拟合状态必须保存并一致复用，pandas 的标签机制则必须被显式理解。
+
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::

@@ -1,0 +1,164 @@
+---
+id: M03.3
+title: 探索性数据分析与可视化
+priority: P0
+tags: []
+prereqs:
+- M03.2
+- M02.3
+anchors: []
+subtitle: Exploratory Data Analysis and Visualization
+module: M03
+build_status: Draft
+learn_status: Not Started
+evidence: []
+next_review: null
+last_reviewed: '2026-11-11'
+code-fold: true
+code-summary: 显示绘图代码
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import BLUE, use_style
+
+use_style()
+rng = np.random.default_rng(42)
+```
+
+## 0. 定位
+
+探索性数据分析（Exploratory Data Analysis, EDA）的产物应是一组有证据的数据判断：观测单位是否一致、哪些区域覆盖不足、哪些关系值得建模、哪些图形可能来自采集机制。本章把图作为检查假设的工具，连接描述统计、关联度量与低维表示。它不替代独立验证，也不把所有漂亮分群都解释成新的物理机制。
+
+## 1. 学习目标
+
+- 按观测单位、分组和样本量组织描述统计，区分中心、离散度与尾部。
+- 根据依赖关系的形状选择 Pearson、Spearman 或互信息，并说明各自的盲区。
+- 从坐标、分箱、密度归一化和分组方式识别图形误导。
+- 对降维图检查预处理、随机性和邻域保留，给出可以被后续实验验证的解释。
+
+## 2. 前置知识
+
+[M03.2 数据处理](02-data-wrangling.qmd)、[M02.3 概率论与信息论](../../02-mathematics-statistics/notes/03-probability-information.qmd)
+
+互信息的概率定义见 [M02.3](../../02-mathematics-statistics/notes/03-probability-information.qmd)，PCA 的投影推导见 [M02.1](../../02-mathematics-statistics/notes/01-linear-algebra.qmd)。本章只讨论它们如何帮助认识数据；聚类与流形算法的系统比较归属 [M04.5](../../04-classical-machine-learning/notes/05-unsupervised-learning.qmd)。
+
+## 3. 推荐阅读
+
+1. NIST/SEMATECH [e-Handbook，Chapter 1: Exploratory Data Analysis](https://www.itl.nist.gov/div898/handbook/eda/eda.htm)，先读 1.1 的 EDA Goals 与 Role of Graphics，再读 1.3 的 Graphical Techniques、Quantitative Techniques。
+2. SciPy [pearsonr](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.pearsonr.html) 的 Notes 和 Examples，注意相关系数与检验假设的区别；scikit-learn [mutual_info_regression](https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.mutual_info_regression.html) 的 Parameters 与 Notes，关注连续和离散特征的指定。
+3. scikit-learn [Manifold learning](https://scikit-learn.org/stable/modules/manifold.html)，重点 t-SNE 的优化、perplexity 与适用限制；先从实例图的可靠解释入手，再到 [M04.5](../../04-classical-machine-learning/notes/05-unsupervised-learning.qmd) 理解算法。
+
+## 4. 核心概念与直觉
+
+### 4.1 一个均值不能代表一个数据集
+
+均值回答平均水平，中位数描述排序后的中心；标准差敏感于尾部，四分位距描述中间一半的宽度。偏态或多峰分布中，用“均值 ± 标准差”画成近似对称区间会隐藏结构。报告分位数、有效样本数和缺失数，通常比再添加几个小数位更有用。对不同单位的列，不应把离散程度直接并排排名。
+
+直方图依赖 bin 宽度与起点，核密度估计依赖带宽。两者展示的是平滑或分箱后的形状，不是未经选择的事实。ECDF 不需要带宽，但长尾中的少数点仍需在横坐标上占据足够空间。对数轴适用于跨数量级的正值；零和负值不能不加说明地丢弃，变换后的平均值也不是原尺度的平均值。
+
+### 4.2 依赖关系的形状先于相关数字
+
+Pearson 衡量线性协同变化，Spearman 对秩计算相关，更适合单调关系。二者接近零都不排除对称的非线性依赖。@fig-core 的响应几乎由 x 的绝对值决定，正负两侧的线性趋势却相互抵消。先看散点图，再决定哪个统计量回答了问题，比从相关热图中挑最大值更可靠。
+
+```{python}
+#| label: fig-core
+#| fig-cap: "非线性依赖可以在线性相关中抵消。800 个合成观测，纵向噪声标准差为 0.15；散点展示原始数据。"
+#| fig-alt: '抛物线形散点显示 x 与 y 存在强依赖'
+x=rng.uniform(-2,2,800)
+y=x*x+rng.normal(0,.15,len(x))
+fig,ax=plt.subplots(figsize=(6.8,3.1))
+ax.scatter(x,y,s=8,alpha=.35,color=BLUE,rasterized=True)
+ax.set(xlabel="合成特征 x",ylabel="响应 y = x² + 噪声")
+fig.tight_layout();plt.show()
+```
+
+互信息为零与独立等价，但这是总体分布的性质。有限数据上的估计要选择分箱、密度模型或近邻参数，会受维度和样本量限制。连续互信息以 nat 或 bit 为单位，通常没有自然的零到一上限；不同估计设置产生的数字不宜直接比较。高相关和高互信息都不能单独建立因果关系。
+
+::: {.column-margin}
+**独立观测数**：一百万个来自同一段轨迹的帧，与一百万个独立结构的证据量不同。EDA 中保留 run、trajectory、composition 等分组字段，才能判断总体图是否被某个大组主导。
+:::
+
+## 5. 原理与设计取舍
+
+### 5.1 相关系数与条件关系
+
+样本 Pearson 相关写为
+
+$$
+r=\frac{\sum_i(x_i-\bar x)(y_i-\bar y)}{\sqrt{\sum_i(x_i-\bar x)^2\sum_i(y_i-\bar y)^2}}.
+$$ {#eq-pearson}
+
+@eq-pearson 对平移和正尺度变换不变，却对异常值、范围限制和混合分组敏感。若其中一个变量恒定，分母为零，相关未定义。显著性检验的 p 值还依赖抽样假设；时间相关和重复测量不能被当作独立样本直接套用默认检验。
+
+::: {.callout-note collapse="true" title="总体协方差为何会掩盖组内关系"}
+令 G 为分组变量，展开条件期望可得
+
+$$\operatorname{Cov}(X,Y)=\mathbb E[\operatorname{Cov}(X,Y\mid G)]+\operatorname{Cov}(\mathbb E[X\mid G],\mathbb E[Y\mid G]).$$
+
+第一项描述组内协同变化，第二项来自组间均值差异。两项方向相反时，总体关系可与所有组内关系反转。条件关系是否对应所关心的科学问题，还需要说明 G 在生成过程中的角色。
+:::
+
+### 5.2 可视化选择是分析的一部分
+
+柱状图通常需要零基线，因为长度承载数值；散点或折线可缩放范围，但必须让刻度清晰可见。多面板比较应共享合理尺度，误差条要标明是标准差、标准误还是置信区间。密度曲线面积归一为一，会隐藏组间数量差异；样本严重不均衡时，最好同时报告数量。颜色应服务变量编码，连续量使用连续色图，类别用有限离散色，并结合线型或标记。
+
+@fig-interactive 改变同一数据的直方图分箱数。峰的数量和细节随之变化，说明直方图适合发现候选结构，而确认多峰性需要更多证据。图中的波动完全来自固定合成样本，没有新数据随滑块生成。
+
+```{python}
+#| label: fig-interactive
+#| fig-cap: "固定的双峰混合样本在不同分箱数下的直方图；滑块只改变显示方式。"
+import plotly.graph_objects as go
+from semiai.plotting import plotly_html,plotly_layout
+sample=np.r_[rng.normal(-.8,.65,500),rng.normal(.8,.65,500)]
+counts=[10,25,60,120]
+fig=go.Figure()
+for i,n in enumerate(counts):
+    h,b=np.histogram(sample,bins=n,range=(-3,3),density=True)
+    fig.add_bar(x=(b[:-1]+b[1:])/2,y=h,width=np.diff(b),marker_color=BLUE,visible=i==0,name=str(n))
+steps=[dict(method="update",label=str(n),args=[{"visible":[i==j for j in range(len(counts))]}]) for i,n in enumerate(counts)]
+fig.update_layout(**plotly_layout(xaxis=dict(title="固定合成样本"),yaxis=dict(title="概率密度"),sliders=[dict(steps=steps,currentvalue=dict(prefix="分箱数 "))],showlegend=False,height=400))
+plotly_html(fig)
+```
+
+## 6. 算法与实现要点
+
+EDA 先检查 shape、键、类型、缺失和组别数量，再画单变量分布、条件分布和变量关系。每一步记录观察与可能解释的区别。例如“高温组误差更大”是观察，“模型缺乏高温覆盖”只是候选解释，还应排查高温组的标注噪声、结构多样性与样本权重。不能让目标标签参与任意特征筛选后，仍把后续评估当作未经观察的数据。
+
+低维投影主要回答哪些局部邻域或主要变化方向值得检查。PCA 最大化线性投影方差，t-SNE 强调局部相似关系；二者优化目标不同。改变标准化、特征集合、随机种子和 perplexity，若所谓“新相”随之消失，就需要回到原空间核验。投影图上使用目标颜色可以帮助诊断，但不能把颜色分离本身当作无监督算法已经发现机制的证据。
+
+## 7. 实例 Notebook
+
+打开 [M03.3 实例讲解](../notebooks/03-eda-visualization.ipynb)。在 VS Code 中选择仓库 `.venv` 内核，按顺序运行；每节按“说明 → 代码 → 输出 → 读法”组织。所有数据均为合成体系，数值比较直接打印误差或指标，图与表来自实际计算。重新执行并保存输出：`make nb M=03`。
+
+| 节 | 内容 | 输出读法 |
+|---|---|---|
+| 1 | 1. 分布、尾部与经验分布函数 | 少量尾部样本会拉动均值；ECDF 每次增加 1/n，直接表达阈值以下的比例 |
+| 2 | 2. Pearson、Spearman 与非线性依赖 | 抛物线有强依赖，却可有接近零的线性相关和秩相关 |
+| 3 | 3. 分组后重新看关联 | 总体与条件关系回答不同问题；分组的理由来自采集过程，不能为了得到预期方向而任意挑组 |
+| 4 | 4. 降维图与邻域保留 | 颜色仅用于追踪已知合成流形位置；t-SNE 的坐标轴没有原始物理单位，簇间距离和空白区域不能直接解释为自由能或结构差异 |
+
+## 8. 领域连接
+
+材料数据中同时存在结构级、原子级和轨迹级观测。先明确统计量是在平均原子、结构还是体系，再比较不同温度与组分。EDA 报告可以围绕覆盖范围、采集偏差、缺失机制、潜在泄漏和建模假设组织，而不必把每对特征都画一遍。面向实际研究时，可进一步用公开 SECOM 数据进行独立分析；本章合成例子只用于隔离统计机制。
+
+## 9. 常见误区与失败模式
+
+- 把相关接近零解释成独立，忽略非单调关系或组内结构。
+- 把降维后的距离、密度和簇大小直接解释成原空间性质；应核验邻域和预处理敏感性。
+- 只展示平滑曲线，不报告分箱、带宽和每组观测数，导致图的精确程度被高估。
+- 看完整个数据集反复挑特征后再声称测试集完全独立；划分与探索边界见下一章。
+
+## 10. 小结
+
+EDA 的核心是建立数据结构、统计摘要与图形证据之间的对应。先看观测单位和分布，再判断关联形式，最后用敏感性分析限制图形解释的范围。它为模型选择提出假设，也为后续验证提供需要单独检查的分组和边界。
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::

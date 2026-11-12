@@ -1,0 +1,195 @@
+---
+id: M03.1
+title: 数据获取与存储
+priority: P0
+tags: []
+prereqs: []
+anchors: []
+subtitle: Data Acquisition and Storage
+module: M03
+build_status: Draft
+learn_status: Not Started
+evidence: []
+next_review: null
+last_reviewed: '2026-11-11'
+code-fold: true
+code-summary: 显示绘图代码
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+from semiai.plotting import AQUA, BLUE, GRAY, use_style
+
+use_style()
+rng = np.random.default_rng(42)
+```
+
+## 0. 定位
+
+存储格式的选择应从访问模式开始：整帧轨迹、少量表格列、单个结构还是跨记录查询，要求的是不同布局。本章比较 CSV、JSON、HDF5、Parquet 与数据库的内部取舍，重点是类型、元数据、部分读取和事务。示例全部使用合成数据，不访问个人科研文件。运行前执行 `uv sync --extra perf --extra data`，所需依赖已在项目中声明。
+
+## 1. 学习目标
+
+- 为数组、表格、结构和元数据选择合适存储，明确 schema、单位与缺失值约定。
+- 解释 HDF5 chunk、Parquet row group、列裁剪与谓词下推如何影响 I/O。
+- 用 SQL 的关联、聚合和窗口运算组织科学观测，检查键和行粒度。
+- 区分结构格式、关系数据库与键值存储，验证往返精度和事务快照。
+
+## 2. 前置知识
+
+本章要求日常文件读写经验；Python 数据序列化和对象机制见 [M01.1](../../01-cs-foundations/notes/01-advanced-python.qmd)，系统调用与 I/O 瓶颈见 [M01.4](../../01-cs-foundations/notes/04-computer-systems.qmd)。不再介绍原子结构和轨迹的领域基础，重点是它们在文件中的表示与查询。
+
+## 3. 推荐阅读
+
+1. h5py 官方 *Datasets*：[Reading & writing data、Multiple indexing、Chunked storage](https://docs.h5py.org/en/stable/high/dataset.html)；Apache Arrow 官方 *Reading and Writing Single Files*：[列选择、row group 与 Filtering/Predicate Pushdown](https://arrow.apache.org/docs/python/parquet/parquet.html)。对照访问模式阅读布局，而不是照抄参数。
+2. SQLite 官方 [Window Functions](https://www.sqlite.org/windowfunctions.html)，第 1–3 节，重点 `PARTITION BY`、`ORDER BY` 与 `LAG`；主键、外键与事务参照其 SQL 文档。
+3. ASE 官方 [A database for atoms](https://docs.ase-lib.org/ase/db/db.html)，重点存储内容、键值查询和写入；LMDB Python 官方 [Reader/writer transactions、Environment、Transaction](https://lmdb.readthedocs.io/en/release/)。
+
+## 4. 核心概念与直觉
+
+### 4.1 文件不是 schema 的替代品
+
+CSV 记录字符和分隔符，通常不完整记录类型、单位、空值语义与层级结构。读取器把 `001` 推断成整数后，标识符信息已经改变。JSON 能表达嵌套对象，但数组元素类型与浮点非有限值仍需约定；严格 JSON 不支持 NaN 与 Infinity。科学数据需要额外记录字段定义、坐标单位、dtype、shape、来源和生成版本，否则“文件成功读回”只能证明语法可解析。
+
+存储方案还应区分原始记录、清洗后的表和派生特征，保留稳定标识符连接它们。覆盖原始数据、靠文件名暗示温度或截断参数，会使后续重算难以追溯。元数据并非最后补的一份说明，而是决定同一列数值能否比较的组成部分。
+
+### 4.2 布局决定什么读取便宜
+
+HDF5 把数据组织为层次化 group 与 dataset，dataset 是固定 dtype 的多维数组。连续布局适合顺序扫描；chunked 布局支持压缩、扩展和局部访问，但读取一点数据往往要解码整块。对“每次读取一帧”的轨迹，沿帧切分通常合理；对“读取同一原子的全部时间”，最优分块可能不同。
+
+Parquet 面向表格，按 row group 分组，再分别编码各列。只读取少数列可以避免解码其他字段；过滤条件还可能利用 min/max 等统计信息跳过 row group。若数据未按相关字段组织，过滤结果很少也不保证实际读取得少。内存映射压缩文件也不等于直接获得零拷贝数组，仍需要解码。
+
+@fig-core 实际写出同一组浮点数据比较文件体积。这个结果受数据分布、压缩器和元数据开销影响，不是通用的格式排名；真正的选择还需要匹配读取粒度、并发和可移植性。
+
+```{python}
+#| label: fig-core
+#| fig-cap: "同一组 1600×8 合成 float64 数据在指定写入设置下的实际文件体积，仅比较本例而非通用速度。"
+#| fig-alt: '横向条形图比较本例 CSV、Parquet 和 HDF5 的文件体积。'
+import tempfile
+from pathlib import Path
+import h5py
+
+values=rng.normal(size=(1600,8))
+frame=pd.DataFrame(values,columns=[f"f{i}" for i in range(8)])
+with tempfile.TemporaryDirectory() as tmp:
+    root=Path(tmp)
+    frame.to_csv(root/"array.csv",index=False,float_format="%.17g")
+    frame.to_parquet(root/"array.parquet",index=False,compression="zstd")
+    with h5py.File(root/"array.h5","w") as file:
+        file.create_dataset("values",data=values,chunks=(100,8),compression="gzip")
+    names=["CSV","Parquet","HDF5"]
+    sizes=[(root/name).stat().st_size/1024 for name in ["array.csv","array.parquet","array.h5"]]
+fig,ax=plt.subplots(figsize=(6.8,3.0))
+ax.barh(names,sizes,color=[GRAY,BLUE,AQUA],height=.5)
+ax.set(xlabel="实际文件大小 / KiB",ylabel="存储格式")
+for i,size in enumerate(sizes):
+    ax.text(size+2,i,f"{size:.1f}",va="center",fontsize=8)
+ax.set_xlim(0,max(sizes)*1.17)
+fig.tight_layout();plt.show()
+```
+
+### 4.3 数据库用约束保护语义
+
+关系数据库把实体拆成有键的表，再通过键关联。运行信息与逐帧观测分开存储，可以减少温度等元数据重复，也便于约束“每个运行每个步号只有一条记录”。关联前必须检查是一对一、一对多还是多对多；错误的重复键会静默放大样本数量，改变统计权重。
+
+事务把多个更新组织成一致的提交单位。ACID 分别涉及原子性、一致性、隔离性和持久性；它们解决的是更新过程中可观察状态与故障恢复，不保证研究数据本身正确。SQLite 还需要明确启用外键检查，不能只在建表语句里声明后就假设它生效。
+
+::: {.column-margin}
+**与训练数据的连接**：同一结构的能量、力、晶胞和计算设置需要一起解释。把它们分散为无法稳定关联的数组，训练前即使形状对得上，也可能把来自不同计算的标签拼到一起。
+:::
+
+## 5. 原理
+
+### 5.1 逻辑读取与物理读取
+
+对元素字节数为 $b$、chunk 大小为 $c$ 的一维数组，从 chunk 边界开始读取 $q$ 个元素时，未计压缩的解码量近似为
+
+$$
+B_{\rm decode}=b\,c\left\lceil q/c\right\rceil,\qquad
+A_{\rm read}=\frac{c\lceil q/c\rceil}{q}.
+$$ {#eq-read-amplification}
+
+@eq-read-amplification 是读放大的简化模型，不是磁盘延迟公式。缓存、压缩率、文件系统预读与非对齐起点都会改变实际代价，多维数组还要计算每个轴上触碰的 chunk 数。增大 chunk 可以改善连续读和压缩，却可能放大零散读取，这是一项工作负载相关的取舍。
+
+### 5.2 查询的行粒度
+
+`SELECT` 定义返回字段和表达式，`WHERE` 选择输入行，`JOIN` 建立跨表匹配，`GROUP BY` 把多行合成每组一行。窗口函数则保留每一条输入观测，在分区内部按顺序计算相邻值、累计量或排名。`LAG(energy) OVER(PARTITION BY run_id ORDER BY step)` 的含义是同一运行的前一帧，而不是当前文件中碰巧位于前面的一行。
+
+::: {.callout-note collapse="true" title="关联为什么可能改变统计权重"}
+若左表某个键出现 $a$ 次，右表同一键出现 $b$ 次，等值关联会产生 $ab$ 行。即使每个输出数值都合法，后续均值已按关联倍数重新加权。主键、唯一约束和显式基数检查可以在聚合之前暴露这个问题。外连接还会引入缺失值，计数时必须区分 `COUNT(*)` 与忽略 NULL 的列计数。
+:::
+
+### 5.3 结构语义与键值事务
+
+extxyz 是适合交换的逐帧文本格式，可携带晶胞、性质声明与逐原子属性；ASE database 把结构、计算结果和可查询键值放在一致记录中。LMDB 则是按字节序排序的键值存储，读事务使用快照，每个环境只允许一个并发写事务。它通过内存映射利用操作系统页缓存，不意味着整个数据库必须常驻 RAM。
+
+键值存储不会自动知道一段字节是坐标还是力。应用仍需定义记录版本、dtype、shape、字节序和单位，并保证元数据与载荷在同一事务内更新。读事务或环境关闭后，零拷贝视图的生命周期也需要检查，不能把失效缓冲区长期保留。
+
+## 6. 算法与实现要点
+
+先写最小往返检查：标识符是否保留，数值误差是否符合格式精度，缺失值和单位是否一致，结构的晶胞、周期性与计算结果是否都在。再按实际查询写基准，分别记录文件大小、读取字段、选择范围和缓存状态。对一个很小的文件跑一次计时，通常主要测到的是启动和缓存行为。
+
+@fig-interactive 改变 chunk 长度，显示同样的连续请求在简化模型下的解码放大。它把“返回多少数据”和“必须读多少数据”分开，帮助在真正测量之前识别布局不匹配。
+
+```{python}
+#| label: fig-interactive
+#| fig-cap: "从 chunk 边界读取连续片段的简化解码模型，不包含缓存、压缩和磁盘延迟。"
+import plotly.graph_objects as go
+from semiai.plotting import plotly_html, plotly_layout
+
+slider_x=np.arange(1,65)
+slider_ys=[c*np.ceil(slider_x/c)/slider_x for c in [1,4,16,64]]
+values = [1,4,16,64]
+fig = go.Figure()
+for i, value in enumerate(values):
+    fig.add_scatter(x=slider_x, y=slider_ys[i], mode="lines", name=f"chunk 长度 = {value}",
+                    line=dict(color=BLUE, width=2), visible=(i == 0))
+steps = [dict(method="update", label=str(value),
+              args=[{"visible": [j == i for j in range(len(values))]},
+                    {"title.text": f"chunk 长度 = {value}"}])
+         for i, value in enumerate(values)]
+fig.update_layout(**plotly_layout(
+    title=dict(text=f"chunk 长度 = {values[0]}", font=dict(size=14)),
+    xaxis=dict(title='请求的连续元素数'), yaxis=dict(title='未压缩解码读放大'),
+    sliders=[dict(active=0, steps=steps, currentvalue=dict(prefix='chunk 长度 = '))],
+    showlegend=False, height=400,
+))
+plotly_html(fig)
+```
+
+## 7. 实例 Notebook
+
+打开 [M03.1 实例讲解](../notebooks/01-data-acquisition-storage.ipynb)。在 VS Code 中选择仓库 `.venv` 内核，按顺序运行；每节按“说明 → 代码 → 输出 → 读法”组织。所有数据均为合成体系，数值比较直接打印误差或指标，图与表来自实际计算。重新执行并保存输出：`make nb M=03`。
+
+| 节 | 内容 | 输出读法 |
+|---|---|---|
+| 1 | 1. CSV、JSON 与显式 schema | 标识符是类别语义而非可运算整数；缺失值、单位和非有限数需要协议，不能依赖读取器猜测 |
+| 2 | 2. 文件体积与 HDF5 分块切片 | 文件大小来自这组数据和压缩设置，不构成通用性能排名；HDF5 的逻辑切片通常按完整 chunk 解码，访问模式决定分块是否合适 |
+| 3 | 3. Parquet 列裁剪与谓词 | 列裁剪减少读取的字段；能否跳过 row group 还取决于统计信息、排序和过滤表达式 |
+| 4 | 4. SQL：关联、聚合与窗口 | GROUP BY 改变行粒度，窗口函数保留原行并指定组内顺序 |
+| 5 | 5. extxyz、ASE database 与 LMDB 事务 | 结构格式保留对象语义，数据库增加可查询元数据；LMDB 只提供字节键值与事务，记录的 dtype、shape、单位和版本仍需应用定义 |
+
+
+## 8. 领域连接
+
+存储契约连接原始结构、模拟结果与模型训练：稳定 ID 和单位保障标签可追溯，分块与列裁剪决定大数据读取成本，事务则防止多文件或多键更新只完成一半。部署与版本管理将在 M09 展开，本章先建立可以被后续清洗和划分可靠使用的数据层。
+
+## 9. 常见误区与失败模式
+
+`dataset[0][1]=...` 可能只修改临时 NumPy 数组，应使用一次索引完成写入。把默认类型推断当成 schema、把 JOIN 后行数增加当作“数据更多”、把内存映射当作不占资源，都容易制造隐蔽错误。格式选择应有访问与语义证据。
+
+## 10. 小结
+
+schema 说明数据是什么，布局决定读取什么便宜，查询定义观测粒度，事务定义更新的可见边界。文件体积只是一个指标；可靠的数据层还需要往返验证、稳定键、单位和来源记录。
+
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::

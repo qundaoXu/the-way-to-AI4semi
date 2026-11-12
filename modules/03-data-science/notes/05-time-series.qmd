@@ -1,0 +1,175 @@
+---
+id: M03.5
+title: 时间序列
+priority: P1
+tags: []
+prereqs:
+- M03.2
+- M02.4
+anchors:
+- A5
+subtitle: Time Series
+module: M03
+build_status: Draft
+learn_status: Not Started
+evidence: []
+next_review: null
+last_reviewed: '2026-11-11'
+code-fold: true
+code-summary: 显示绘图代码
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+from semiai.plotting import BLUE, GRAY, ORANGE, use_style
+
+use_style()
+rng = np.random.default_rng(42)
+```
+
+## 0. 定位
+
+时间序列的每一行携带一个真实时刻，相邻观测还携带依赖关系。把它当普通表格会丢掉预测方向、采样间隔和统计信息量。本章围绕平稳性、自相关、趋势季节性、窗口特征与变化点建立分析顺序，并专门讨论保持性研究常见的非均匀及对数时间采样。随机过程的一般理论见 M02.8，这里关注如何读数据和构造可用分析。
+
+## 1. 学习目标
+
+- 解释弱平稳与独立的区别，用 ACF 判断时间依赖而非仅检查均值。
+- 分离趋势、周期和剩余项，并按预测时刻构造过去窗口。
+- 区分离线变化点定位与在线变化检测，明确检测对象和阈值来源。
+- 让模型使用实际时间间隔，比较线性、对数采样对覆盖与估计的影响。
+
+## 2. 前置知识
+
+[M03.2 数据处理](02-data-wrangling.qmd)、[M02.4 数理统计](../../02-mathematics-statistics/notes/04-mathematical-statistics.qmd)
+
+相关样本的抽样误差见 [M02.8](../../02-mathematics-statistics/notes/08-stochastic-processes-sampling.qmd)，时间切分与窗口泄漏见 [M03.4](04-splitting-leakage-shift.qmd)。本章不重复整个预测评估协议，也不把一个平稳性检验当作建模许可。
+
+## 3. 推荐阅读
+
+1. Hyndman 与 Athanasopoulos，[Forecasting: Principles and Practice, 3rd ed](https://otexts.com/fpp3/)，Chapter 2 的时间图和自相关，Chapter 3 的分量与移动平均，Chapter 9.1 Stationarity and differencing。该书示例使用 R，本仓库只借鉴方法论，计算均使用 Python。
+2. SciPy [lombscargle](https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.lombscargle.html)，重点角频率、floating mean 和不规则采样的注意事项。
+3. NIST [6.3.2.3 CUSUM Control Charts](https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc323.htm)，理解累计小偏移与告警界限；将在线控制图与本章离线分段拟合对照。
+
+## 4. 核心概念与直觉
+
+### 4.1 平稳描述统计规律的时间一致性
+
+弱平稳要求均值恒定、方差有限，协方差只取决于滞后而不依赖绝对时刻。它不要求样本独立，也不等于曲线看起来平。AR(1) 可以围绕固定均值连续波动且高度相关；带线性趋势的独立噪声则均值随时间改变。比较不同时间块的分布、ACF 和已知采集过程，比仅跑一个检验更能说明问题。
+
+样本 ACF 通常按步数定义滞后，前提是每一步对应相同的实际时间。非均匀数据中相邻两行可能相差一秒或一天，这时“lag=1”混合了不同物理尺度。插值到规则网格可以便于画图，却会人为制造平滑和相关，不能把插值点算成新的独立测量。
+
+### 4.2 趋势、季节性与剩余项
+
+加性分解写作 y_t=T_t+S_t+R_t；当波动幅度随水平变化时，可能需要乘性分解或对数变换。季节性强调固定周期的重复，长期周期变化不一定具有固定周期。@fig-core 展示已知生成分量，帮助识别不同部分的角色；真实数据中这些分量是带假设的估计，不存在唯一正确的分法。
+
+```{python}
+#| label: fig-core
+#| fig-cap: "240 个等间隔合成观测的趋势、季节项与独立噪声。下方面板扣除已知真实分量；它展示生成机制，不是拟合优度。"
+#| fig-alt: '上方信号随趋势上升并周期振荡，下方为扣除真实分量后的噪声'
+t=np.arange(240)
+trend=.008*t
+season=.6*np.sin(2*np.pi*t/24)
+y=trend+season+rng.normal(0,.16,len(t))
+fig,axes=plt.subplots(2,1,figsize=(6.8,4),sharex=True,height_ratios=[2,1])
+axes[0].plot(t,y,color=BLUE,lw=.8,label="合成观测")
+axes[0].plot(t,trend,color=ORANGE,lw=1.5,label="已知趋势")
+axes[0].set(ylabel="信号");axes[0].legend(ncol=2)
+axes[1].plot(t,y-trend-season,color=GRAY,lw=.8)
+axes[1].set(xlabel="等间隔时刻",ylabel="已知分量扣除后")
+fig.tight_layout();plt.show()
+```
+
+::: {.column-margin}
+**窗口的两种用途**：中心移动平均适合回顾性平滑，但会使用未来值；预测时刻只能使用已经获得的历史。图上看起来更平滑并不是它能在线使用的证据。
+:::
+
+## 5. 数学原理与取舍
+
+### 5.1 自相关如何改变均值的不确定性
+
+弱平稳序列均值的有限样本方差为
+
+$$
+\operatorname{Var}(\bar x)=\frac{\sigma^2}{n}\left[1+2\sum_{k=1}^{n-1}\left(1-\frac{k}{n}\right)\rho(k)\right].
+$$ {#eq-mean-autocorr}
+
+@eq-mean-autocorr 表明依赖影响的是统计信息量，不只是绘图形状。正相关通常增加均值方差，负相关可能减少；不能不加条件地把所有序列都套用一个经验抽样间隔。AR(1) 在 |φ|<1 时平稳，ρ(k)=φ^k；长序列的均值有效样本数约为 n(1−φ)/(1+φ)。
+
+::: {.callout-note collapse="true" title="从协方差和得到均值方差"}
+将 Var(n⁻¹∑x_i) 展开为 n⁻²∑ᵢ∑ⱼCov(x_i,x_j)。平稳时每个非零滞后 k 出现 2(n−k) 次，再除以方差得到上式。若相关和收敛，令 n 足够大可用无穷和近似；长记忆或非平稳序列不能直接使用该近似。
+:::
+
+### 5.2 变化点不是单个离群点
+
+离线分段方法通过降低区间内损失并惩罚变化点数量来定位机制改变。惩罚太小会把噪声切成多段，太大会错过真实变化。均值、方差、斜率和相关结构的变化是不同检测问题，需要不同损失。CUSUM 在线累积相对基准的小偏离，必须通过稳定基准段或模拟校准误报和检测延迟；离线最佳分割不能解释成当时已经知道的告警。
+
+时间采样计划同时决定可识别性。对数采样在多个数量级上分配预算，有利于早期快速演化；线性采样对晚期绝对时间具有更均匀覆盖。用 log(t) 拟合斜率是在假设响应与对数时间有关系，不只是换一张坐标纸；记录时间单位和 t>0 的有效范围是模型定义的一部分。
+
+## 6. 算法与实现要点
+
+先排序并检查重复时刻、间隔和断测，再区分分析目标是回顾解释、短期预测还是变点告警。窗口统计明确是否包含当前观测、标签跨度与最小观测数。趋势与季节项在训练段估计，检验剩余项是否还含结构，再决定是否需要 AR 类模型。漂移的统计摘要应按真实时间块比较，不应仅按相同行数切块。
+
+@fig-interactive 比较过去窗口宽度。较宽窗口降低噪声，也会延迟对转折的响应；这种偏差与方差取舍不是通过一个最平滑的图就能决定的。非均匀频率分析使用实际时刻，Lomb–Scargle 可以在每个候选频率上拟合正弦分量，但采样窗仍可能引入别名峰。
+
+```{python}
+#| label: fig-interactive
+#| fig-cap: "仅使用过去观测的移动平均；起始缺失来自尚未积累足够窗口。"
+import plotly.graph_objects as go
+from semiai.plotting import plotly_html, plotly_layout
+
+slider_x=np.arange(len(y))
+slider_ys=[pd.Series(y).shift(1).rolling(w).mean().to_numpy() for w in [3,12,24,48]]
+values = [3,12,24,48]
+fig = go.Figure()
+for i, value in enumerate(values):
+    fig.add_scatter(x=slider_x, y=slider_ys[i], mode="lines", name=f"窗口宽度 = {value}",
+                    line=dict(color=BLUE, width=2), visible=(i == 0))
+steps = [dict(method="update", label=str(value),
+              args=[{"visible": [j == i for j in range(len(values))]},
+                    {"title.text": f"窗口宽度 = {value}"}])
+         for i, value in enumerate(values)]
+fig.update_layout(**plotly_layout(
+    title=dict(text=f"窗口宽度 = {values[0]}", font=dict(size=14)),
+    xaxis=dict(title='时刻'), yaxis=dict(title='过去窗口平均'),
+    sliders=[dict(active=0, steps=steps, currentvalue=dict(prefix='窗口宽度 = '))],
+    showlegend=False, height=400,
+))
+plotly_html(fig)
+```
+
+## 7. 实例 Notebook
+
+打开 [M03.5 实例讲解](../notebooks/05-time-series.ipynb)。在 VS Code 中选择仓库 `.venv` 内核，按顺序运行；每节按“说明 → 代码 → 输出 → 读法”组织。所有数据均为合成体系，数值比较直接打印误差或指标，图与表来自实际计算。重新执行并保存输出：`make nb M=03`。
+
+| 节 | 内容 | 输出读法 |
+|---|---|---|
+| 1 | 1. 平稳 AR(1) 与样本自相关 | 平稳不意味着独立；自相关衰减意味着均值方差大于独立抽样公式 |
+| 2 | 2. 趋势、季节项与过去窗口 | 这里周期已知、趋势线性，因而可用最小二乘隔离机制；真实数据需要在训练时间段决定周期和模型，扣除拟合分量不自动保证剩余项平稳 |
+| 3 | 3. 对数时间与离线变化点 | 相同样本预算在早期覆盖完全不同；模型只允许一个连续斜率变化，不能拿它直接检测任意突跳或多变化点 |
+| 4 | 4. 非均匀采样的频率分析 | API 接受角频率，必须乘 2π；峰的显著性还受采样窗、混叠和扫描频率范围影响 |
+
+## 8. 领域连接
+
+保持性或电阻漂移数据常横跨多个数量级，应同时保留原始时刻与所用变换。若要比较老化斜率与变化点，先固定响应尺度、测量噪声和采样预算，再比较线性与对数采样。notebook 用合成斜率变化隔离覆盖效应；真实数据还应考虑样品间差异和重复测量，而不把同一器件的不同时刻当独立器件。
+
+## 9. 常见误区与失败模式
+
+- 对带趋势数据直接解释 ACF，把共同趋势误认为稳定的短程相关。
+- 在不规则时刻上按行号做 FFT 或固定步数回归，改变了频率与斜率的单位。
+- 把离线分段的位置当作在线可发现时刻，忽略未来信息与告警延迟。
+- 用插值增加行数后缩小置信区间；插值并未增加独立信息。
+
+## 10. 小结
+
+时间序列分析从真实时刻和依赖结构开始。分解帮助描述，窗口服务明确的预测时刻，变化点对应指定的机制变化。采样计划影响能够识别什么，任何平滑、重采样和时间变换都应作为模型假设记录下来。
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::

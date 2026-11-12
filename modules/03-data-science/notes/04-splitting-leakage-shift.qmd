@@ -1,0 +1,193 @@
+---
+id: M03.4
+title: 数据划分、泄漏与分布偏移
+priority: P0
+tags: []
+prereqs:
+- M03.2
+- M04.1
+anchors:
+- A2
+subtitle: Data Splitting, Leakage and Distribution Shift
+module: M03
+build_status: Draft
+learn_status: Not Started
+evidence: []
+next_review: null
+last_reviewed: '2026-11-11'
+code-fold: true
+code-summary: 显示绘图代码
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import BLUE, ORANGE, use_style
+
+use_style()
+rng = np.random.default_rng(42)
+```
+
+## 0. 定位
+
+数据划分定义了模型要回答的预测问题。对轨迹随机抽帧，通常检验已知轨迹邻域的内插；按独立轨迹、组分或时间留出，才可能检验相应的迁移能力。本章是泄漏与分布偏移的主要归属章节，重点是从部署时可获得的信息反推评估协议，并把模型、预处理和研究者选择一起放进协议。
+
+## 1. 学习目标
+
+- 为帧、轨迹、结构相似簇和时间序列选择划分单位，明确所得风险的适用范围。
+- 发现标签、预处理、近重复、滑动窗口和反复调参引入的信息泄漏。
+- 区分协变量、标签与概念偏移，说明有标签与无标签诊断各能识别什么。
+- 保存可复查的划分清单，以组、时间和最近距离审计评估的独立程度。
+
+## 2. 前置知识
+
+[M03.2 数据处理](02-data-wrangling.qmd)、[M04.1 统计学习基础](../../04-classical-machine-learning/notes/01-statistical-learning.qmd)
+
+经验风险与泛化误差的系统讨论在 M04.1；本章先把风险理解为指定未来分布上的平均损失。预处理的具体类型见 [M03.2](02-data-wrangling.qmd)，交叉验证、模型选择与指标归属 M04.7。
+
+## 3. 推荐阅读
+
+1. scikit-learn [Common pitfalls](https://scikit-learn.org/stable/common_pitfalls.html)，重点 Inconsistent preprocessing 与 Data leakage，理解为什么 Pipeline 要在每个训练折内部拟合。
+2. scikit-learn [Cross-validation](https://scikit-learn.org/stable/modules/cross_validation.html)，重点 grouped data、time series；再查 [GroupShuffleSplit](https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.GroupShuffleSplit.html) 的组比例语义与 [TimeSeriesSplit](https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.TimeSeriesSplit.html) 的 gap、等间隔前提。
+3. 分布偏移的延伸阅读为 [Dataset Shift in Machine Learning](https://mitpress.mit.edu/9780262170055/dataset-shift-in-machine-learning/)，从定义与 covariate shift 主题开始。本章的术语按下文给出的概率分解使用，避免仅凭“训练测试不一样”混称所有机制。
+
+## 4. 核心概念与直觉
+
+### 4.1 先写预测时刻和对象
+
+评估协议至少写清预测什么、对谁预测、什么时候预测、预测时已有何种信息。若目标是在同一体系的已采样区域补充能量，随机帧可能符合问题；若目标是全新组分或全新轨迹，它往往过于容易。更难的划分不自动更科学，划分应与声明的适用范围匹配。按轨迹留出也不保证组分外推，因为不同轨迹仍可能来自相同结构族。
+
+@fig-core 使用具有轨迹专属标签偏移的合成数据，让随机划分可以通过邻居识别组身份。两种 RMSE 对应两个任务，而不是一个模型突然发生了数值错误。真实 MD 应进一步报告轨迹来源、时间相关尺度与结构覆盖，不能把本例差值当作普遍比例。
+
+```{python}
+#| label: fig-core
+#| fig-cap: "同一 1-NN 在随机帧与未见轨迹上的 RMSE。24 条合成轨迹、每条 30 帧；标签含独立轨迹偏移，柱高来自实际计算，不表示真实材料误差。"
+#| fig-alt: '随机帧与未见轨迹评估的误差柱状图'
+from sklearn.model_selection import train_test_split,GroupShuffleSplit
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.metrics import mean_squared_error
+local=np.random.default_rng(12)
+groups=np.repeat(np.arange(24),30)
+centers=local.normal(0,3,(24,4))
+X=centers[groups]+local.normal(0,.04,(len(groups),4))
+y=local.normal(0,2,24)[groups]+local.normal(0,.04,len(groups))
+idx=np.arange(len(y))
+splits={"随机帧":train_test_split(idx,test_size=.25,random_state=42),
+        "未见轨迹":next(GroupShuffleSplit(n_splits=1,test_size=.25,random_state=42).split(X,y,groups))}
+errors=[]
+for name,(train,test) in splits.items():
+    model=KNeighborsRegressor(n_neighbors=1).fit(X[train],y[train])
+    errors.append(np.sqrt(mean_squared_error(y[test],model.predict(X[test]))))
+fig,ax=plt.subplots(figsize=(6.5,3))
+ax.bar(list(splits),errors,color=[BLUE,ORANGE],width=.5)
+ax.set(ylabel="测试 RMSE（合成单位）")
+fig.tight_layout();plt.show()
+```
+
+### 4.2 泄漏是越过信息边界
+
+直接把目标、计算结束后才知道的字段放入输入是明显泄漏。更隐蔽的情况包括全数据填补或标准化、按完整标签做特征选择、相邻窗口跨训练测试、同一母结构的增强副本跨集合，以及研究者反复根据测试分数修改模型。模型本身没有显式读测试标签，也可能通过这些选择间接利用它。
+
+验证集用于选择，测试集用于最后评价。若需要比较完整调参算法，外层留出或嵌套交叉验证评估的对象是整条选择流程。不能只把最终 estimator 包进交叉验证，而把特征选择留在外面。划分清单和预处理拟合状态应与模型一起保存。
+
+::: {.column-margin}
+**结构距离没有唯一答案**：成分、局部环境、全局晶胞和热扰动对应不同相似性。阈值应来自任务定义或训练侧规则，避免为了得到理想分数反复调整测试边界。
+:::
+
+## 5. 数学原理
+
+### 5.1 偏移发生在哪个分布
+
+用 s、t 表示来源与目标分布，常见理想化机制为：
+
+| 机制 | 改变的量 | 保持的量 | 需要关注 |
+|---|---|---|---|
+| 协变量偏移 | p(x) | p(y\|x) | 覆盖和密度比 |
+| 标签偏移 | p(y) | p(x\|y) | 类别先验与可识别性 |
+| 概念偏移 | p(y\|x) | 不要求 p(x) 改变 | 目标标签或机制证据 |
+
+现实可以同时发生多种变化。域分类器可分、特征均值改变或距离增大，是分布差异的信号，不能独立证明条件机制保持。没有目标标签时，某些概念偏移在原则上不可识别。
+
+### 5.2 加权何时能修正风险
+
+协变量偏移且目标支持包含于来源支持时，
+
+$$
+R_t(f)=\mathbb E_s\left[w(\mathbf x)\ell(f(\mathbf x),y)\right],\qquad
+w(\mathbf x)=\frac{p_t(\mathbf x)}{p_s(\mathbf x)}.
+$$ {#eq-shift-risk}
+
+@eq-shift-risk 是条件分布不变时的换测度，不是对所有偏移通用的补丁。稀有区域的巨大权重可能让估计被几个样本支配，截断权重又引入偏差，因此同时报告权重分布和有效样本量。
+
+::: {.callout-note collapse="true" title="风险等式的条件"}
+把目标风险写成积分，代入 p_t(x,y)=p_t(x)p_t(y|x)，再使用 p_t(y|x)=p_s(y|x)，乘除 p_s(x)，即得到加权来源期望。若某处 p_t(x)>0 而 p_s(x)=0，密度比没有有限定义，来源样本无法提供该区域的风险证据。
+:::
+
+## 6. 算法与实现要点
+
+先锁定稳定 ID，再按独立单位生成索引。分组划分的比例针对组数，不一定等于样本数；长短不一的轨迹会导致行比例变化。分类任务可在不破坏组边界的前提下尝试分层分组，但组数太少时不可能同时满足所有约束，应明确报告实际覆盖。
+
+时间切分还要检查标签预测跨度和输入窗口，必要时 purge 重叠标签区间并设置 gap。TimeSeriesSplit 的 gap 是样本数；非均匀采样要按真实时间构造边界。相似性分组可基于描述符距离建图后取连通分量，但单链接链式连接会产生巨组，需要检查组大小和跨集合最近距离。
+
+@fig-interactive 改变目标特征均值。来源分布固定，尾部覆盖随偏移变差；只知道来源误差无法推断新的目标风险。这里刻意只改变特征分布，以隔离协变量偏移的几何含义。
+
+```{python}
+#| label: fig-interactive
+#| fig-cap: "单位方差目标正态分布随均值偏移；来源分布对应均值为零。"
+import plotly.graph_objects as go
+from semiai.plotting import plotly_html, plotly_layout
+
+slider_x=np.linspace(-4,6,300)
+slider_ys=[np.exp(-.5*(slider_x-mu)**2)/np.sqrt(2*np.pi) for mu in [0,.5,1,2]]
+values = [0,.5,1,2]
+fig = go.Figure()
+for i, value in enumerate(values):
+    fig.add_scatter(x=slider_x, y=slider_ys[i], mode="lines", name=f"目标均值 = {value}",
+                    line=dict(color=BLUE, width=2), visible=(i == 0))
+steps = [dict(method="update", label=str(value),
+              args=[{"visible": [j == i for j in range(len(values))]},
+                    {"title.text": f"目标均值 = {value}"}])
+         for i, value in enumerate(values)]
+fig.update_layout(**plotly_layout(
+    title=dict(text=f"目标均值 = {values[0]}", font=dict(size=14)),
+    xaxis=dict(title='特征 x'), yaxis=dict(title='目标概率密度'),
+    sliders=[dict(active=0, steps=steps, currentvalue=dict(prefix='目标均值 = '))],
+    showlegend=False, height=400,
+))
+plotly_html(fig)
+```
+
+## 7. 实例 Notebook
+
+打开 [M03.4 实例讲解](../notebooks/04-splitting-leakage-shift.ipynb)。在 VS Code 中选择仓库 `.venv` 内核，按顺序运行；每节按“说明 → 代码 → 输出 → 读法”组织。所有数据均为合成体系，数值比较直接打印误差或指标，图与表来自实际计算。重新执行并保存输出：`make nb M=03`。
+
+| 节 | 内容 | 输出读法 |
+|---|---|---|
+| 1 | 1. 相邻结构与轨迹分组 | 随机帧评估的是已见轨迹内插，分组评估的是未见轨迹迁移；这里标签刻意包含不可泛化的组偏移，因此差距来自已知机制，不能当作真实 MD 的定量结论 |
+| 2 | 2. 时间顺序、窗口与 gap | gap 按样本索引计量，不自动等于物理时间；该例选择保守的窗口隔离，真实预测也可以合法使用预测时已知的历史，关键是定义当时的信息集合 |
+| 3 | 3. 结构相似性分组与距离审计 | 单链接把阈值内邻接边连接成组，因而训练测试间没有小于阈值的边；链式连接可能产生巨组 |
+| 4 | 4. 偏移诊断与重要性加权 | 加权成立需要条件分布不变且目标支持被来源覆盖；有限样本权重尾部会增加方差 |
+
+## 8. 领域连接
+
+MLIP 数据清单建议保留母结构 ID、轨迹 ID、温度、组分、时间和标注方法版本。它们既能定义留出边界，也能解释误差来源。若比较两个模型，应共享同一划分和采样预算；随机划分、时间留出、结构族留出可并列报告，分别对应内插、未来预测和结构迁移，不要把它们混成一个不具定义的“泛化分数”。
+
+## 9. 常见误区与失败模式
+
+- 每隔若干帧抽样后就假定完全独立；应根据相关尺度与结构相似性检查。
+- 在测试集上选择距离阈值、特征或早停轮数；这些选择本身属于训练流程。
+- 仅因特征分布相近就断言部署可靠；条件标签机制仍可能变化。
+- 按行统计平均误差而忽略某条超长轨迹的权重；按帧和按体系平均回答不同问题。
+
+## 10. 小结
+
+先定义未来对象和可用信息，再定义集合边界。泄漏破坏这个边界，分布偏移改变边界外的问题。保存组与时间信息、折内拟合预处理、检查近重复和支持覆盖，才能把评估分数解释为一个明确任务上的证据。
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::
