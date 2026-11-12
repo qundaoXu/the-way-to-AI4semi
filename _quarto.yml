@@ -89,8 +89,11 @@ website:
           - text: 代码仓库
             href: resources/repositories.md
   # 侧边栏按模块分组；每组的讲义列表由目录通配自动生成，只显示已建设的讲义。
+  # floating：侧栏、正文、目录作为一组在宽屏上居中，窄屏沿用 Quarto 的折叠导航。
+  # 还没有讲义的模块写成普通链接：Quarto 会丢掉 contents 为空的 section 的 href，
+  # 导致模块名无法点击。模块开始建设后改回 section + notes 通配。
   sidebar:
-    style: docked
+    style: floating
     collapse-level: 1
     contents:
       - section: "01 计算机基础"
@@ -108,27 +111,20 @@ website:
       - section: "05 深度学习"
         href: modules/05-deep-learning/README.md
         contents: "modules/05-deep-learning/notes/*.qmd"
-      - section: "06 现代 AI 架构"
+      - text: "06 现代 AI 架构"
         href: modules/06-advanced-ai/README.md
-        contents: "modules/06-advanced-ai/notes/*.qmd"
-      - section: "07 科学机器学习"
+      - text: "07 科学机器学习"
         href: modules/07-scientific-machine-learning/README.md
-        contents: "modules/07-scientific-machine-learning/notes/*.qmd"
-      - section: "08 半导体制造数据科学"
+      - text: "08 半导体制造数据科学"
         href: modules/08-semiconductor-data-science/README.md
-        contents: "modules/08-semiconductor-data-science/notes/*.qmd"
-      - section: "09 ML 工程与 MLOps"
+      - text: "09 ML 工程与 MLOps"
         href: modules/09-ml-engineering-mlops/README.md
-        contents: "modules/09-ml-engineering-mlops/notes/*.qmd"
-      - section: "10 大语言模型、RAG 与 Agent"
+      - text: "10 大语言模型、RAG 与 Agent"
         href: modules/10-llm-rag-agents/README.md
-        contents: "modules/10-llm-rag-agents/notes/*.qmd"
-      - section: "11 高性能计算与 GPU"
+      - text: "11 高性能计算与 GPU"
         href: modules/11-hpc-gpu-computing/README.md
-        contents: "modules/11-hpc-gpu-computing/notes/*.qmd"
-      - section: "12 进阶与前沿专题"
+      - text: "12 进阶与前沿专题"
         href: modules/12-advanced-topics/README.md
-        contents: "modules/12-advanced-topics/notes/*.qmd"
 
 format:
   html:
