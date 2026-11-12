@@ -1,0 +1,173 @@
+---
+id: M04.4
+title: 树模型与集成学习
+priority: P0
+tags: []
+prereqs:
+- M04.1
+anchors: []
+subtitle: Trees and Ensemble Learning
+module: M04
+build_status: Draft
+learn_status: Not Started
+evidence: []
+next_review: null
+last_reviewed: '2026-11-11'
+code-fold: true
+code-summary: 显示绘图代码
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import BLUE, GRAY, ORANGE, PURPLE, use_style
+
+use_style()
+rng = np.random.default_rng(42)
+```
+
+## 0. 定位
+
+树模型通过递归切分输入空间建立局部规则，集成方法再通过平均或逐步修正提高稳定性与表达能力。本章从一维 CART 的切分目标出发，连接 Bagging、随机森林和梯度提升，并解释 XGBoost、LightGBM 的工程选择。重点是哪些误差被减少、哪些假设仍然保留，以及为什么表格数据上的强基线并不自动适合平滑能量面。
+
+## 1. 学习目标
+
+- 手写一维回归树，解释不纯度下降、叶节点、深度和最小叶样本数。
+- 区分 Bagging 的方差降低与 Boosting 的逐步函数拟合，说明树间相关性的作用。
+- 从损失梯度理解提升算法，并对齐平方损失的逐轮残差实现。
+- 解释直方图、稀疏处理和叶优先生长的成本与风险，识别树的外推边界。
+
+## 2. 前置知识
+
+[M04.1 统计学习基础](01-statistical-learning.qmd)
+
+偏差方差与正则化见 [M04.1](01-statistical-learning.qmd)。分组与时间协议见 [M03.4](../../03-data-science/notes/04-splitting-leakage-shift.qmd)；本章的袋外估计只是集成内部机制，不替代相应部署任务的独立评估。
+
+## 3. 推荐阅读
+
+1. James 等，2023，[ISLP](https://www.statlearning.com/)，Chapter 8 Tree-Based Methods：决策树、Bagging、Random Forests 与 Boosting。配合 scikit-learn [Decision Trees](https://scikit-learn.org/stable/modules/tree.html) 的数学形式与复杂度、[Ensembles](https://scikit-learn.org/stable/modules/ensemble.html) 的森林和梯度提升部分阅读。
+2. Chen 与 Guestrin，2016，[XGBoost: A Scalable Tree Boosting System](https://arxiv.org/abs/1603.02754)，重点正则化目标、稀疏感知切分、weighted quantile sketch 与缓存布局，区分算法目标和系统优化。
+3. LightGBM 官方 [Features](https://lightgbm.readthedocs.io/en/stable/Features.html)，重点 histogram、histogram subtraction、leaf-wise growth；这里是机制导读，不以不同版本默认设置进行性能排名。
+
+## 4. 核心概念与直觉
+
+### 4.1 一次切分换来多少纯度
+
+回归树在候选特征与阈值上寻找切分，使左右叶内平方残差和最小；每个叶子的最优常数是该叶响应均值。分类树则使用 Gini 或熵等不纯度，叶内类别比例可作为经验概率估计。递归贪心只保证当前局部切分好，不保证整棵树在所有可能结构中全局最优。
+
+树不需要像距离模型一样依靠标准化决定几何，但输入编码仍然重要。把无序类别任意编码为整数会让阈值强加次序；缺失值的分支策略也因实现而异。深树可以记住很小区域，最小叶样本、最大深度和代价复杂度剪枝用不同方式限制这种细化。
+
+### 4.2 平均与修正是两种集成逻辑
+
+Bagging 对 bootstrap 样本分别训练不稳定基模型，再平均预测；随机森林进一步随机选择候选特征，降低树间相关。Boosting 则沿当前模型的错误方向逐步加新模型，前一轮影响下一轮。@fig-core 展示同一一维任务的预测形状，森林的平均通常更稳定，提升可以逐步修正偏差，但二者仍保留常数叶和数据覆盖边界。
+
+```{python}
+#| label: fig-core
+#| fig-cap: "180 个带噪合成观测上三类树模型的预测。虚线标记采样范围边界；图为单次拟合机制比较，不是泛化性能排名。"
+#| fig-alt: '单树、森林和提升树在一维数据及范围外的预测'
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import RandomForestRegressor,GradientBoostingRegressor
+local=np.random.default_rng(18)
+x=np.sort(local.uniform(-2,2,180));y=np.sin(2*x)+local.normal(0,.25,len(x))
+grid=np.linspace(-2.5,2.5,300)
+fig,ax=plt.subplots(figsize=(6.8,3.2))
+ax.scatter(x,y,s=9,color=GRAY,alpha=.5)
+for model,color,label in [(DecisionTreeRegressor(max_depth=4,random_state=42),ORANGE,"单树"),(RandomForestRegressor(n_estimators=100,min_samples_leaf=4,random_state=42),BLUE,"随机森林"),(GradientBoostingRegressor(n_estimators=80,max_depth=2,random_state=42),PURPLE,"梯度提升")]:
+    model.fit(x[:,None],y);ax.plot(grid,model.predict(grid[:,None]),color=color,lw=1.1,label=label)
+ax.axvline(-2,color=GRAY,ls="--",lw=.6);ax.axvline(2,color=GRAY,ls="--",lw=.6)
+ax.set(xlabel="输入 x",ylabel="合成响应");ax.legend(ncol=3)
+fig.tight_layout();plt.show()
+```
+
+::: {.column-margin}
+**袋外并非分组外**：某行未进入一棵 bootstrap 树，不代表同一轨迹的相邻帧也未进入。相关数据的 OOB 分数可能仍只反映组内内插。
+:::
+
+## 5. 数学原理
+
+### 5.1 平均器的方差下限
+
+若 M 个预测器误差具有相同方差 σ²、两两相关 ρ，则平均误差方差为
+
+$$
+\operatorname{Var}(\bar e)=\rho\sigma^2+\frac{1-\rho}{M}\sigma^2.
+$$ {#eq-ensemble-variance}
+
+@eq-ensemble-variance 解释了为什么增加树数不能消除共同偏差或共同误差。特征随机化可能降低相关，但单树也可能变弱；max_features 的选择就是这两种影响的平衡。实际树对的相关不必相同，此式是说明机制的简化模型。
+
+::: {.callout-note collapse="true" title="从协方差展开集成方差"}
+Var(M⁻¹∑e_m)=M⁻²[Mσ²+M(M−1)ρσ²]，整理即得上式。若所有模型完全相同，ρ=1 时平均没有方差收益；若独立，ρ=0 时方差按 1/M 下降。对共同偏差的平方项，这个平均并不会自动产生相同的改善。
+:::
+
+### 5.2 在函数空间中做梯度下降
+
+提升模型 F_m=F_{m−1}+ηh_m，新树 h_m 拟合每个样本上的负损失梯度。平方损失的负梯度就是残差，其他损失会产生不同的伪残差。学习率 η、树的复杂度和轮数共同控制拟合路径；缩小学习率通常需要更多轮，不能只比较固定轮数下的训练损失。
+
+XGBoost 利用一阶和二阶损失展开计算叶值与增益，并加入叶数与叶权重惩罚；稀疏感知路径和量化候选降低系统成本。LightGBM 使用直方图与相减减少阈值搜索和内存开销，叶优先按最大增益继续分裂，可能在少数区域形成很深的树。现代实现可能提供多种生长策略，不能把历史论文中的默认当成永远固定的接口。
+
+## 6. 算法与实现要点
+
+一维手写 CART 先排序并遍历相邻唯一值中点，计算左右损失；高效实现用前缀和更新候选代价，多维还要搜索特征。浮点阈值与并列最佳切分可能导致不同库得到等价但结构不同的树，对齐时先限定无并列的小例子，再比较预测而不只比较节点编号。
+
+@fig-interactive 改变树深度，查看叶内常数近似如何逐步细化。训练时应记录叶大小、验证曲线、早停所用集合和随机源；强大的 boosting 仍可在小数据、泄漏特征或高噪声上过拟合。直方图实现的优势来自规模和访存，本章不通过小样本计时声称某个库普遍更快。
+
+```{python}
+#| label: fig-interactive
+#| fig-cap: "同一合成观测集上切换最大深度，观察常数叶的空间细化。"
+import plotly.graph_objects as go
+from semiai.plotting import plotly_html, plotly_layout
+
+slider_x=grid
+slider_ys=[DecisionTreeRegressor(max_depth=d,random_state=42).fit(x[:,None],y).predict(grid[:,None]) for d in [1,2,4,8]]
+values = [1,2,4,8]
+fig = go.Figure()
+for i, value in enumerate(values):
+    fig.add_scatter(x=slider_x, y=slider_ys[i], mode="lines", name=f"最大深度 = {value}",
+                    line=dict(color=BLUE, width=2), visible=(i == 0))
+steps = [dict(method="update", label=str(value),
+              args=[{"visible": [j == i for j in range(len(values))]},
+                    {"title.text": f"最大深度 = {value}"}])
+         for i, value in enumerate(values)]
+fig.update_layout(**plotly_layout(
+    title=dict(text=f"最大深度 = {values[0]}", font=dict(size=14)),
+    xaxis=dict(title='输入 x'), yaxis=dict(title='树预测'),
+    sliders=[dict(active=0, steps=steps, currentvalue=dict(prefix='最大深度 = '))],
+    showlegend=False, height=400,
+))
+plotly_html(fig)
+```
+
+## 7. 实例 Notebook
+
+打开 [M04.4 实例讲解](../notebooks/04-trees-ensembles.ipynb)。在 VS Code 中选择仓库 `.venv` 内核，按顺序运行；每节按“说明 → 代码 → 输出 → 读法”组织。所有数据均为合成体系，数值比较直接打印误差或指标，图与表来自实际计算。重新执行并保存输出：`make nb M=04`。
+
+| 节 | 内容 | 输出读法 |
+|---|---|---|
+| 1 | 1. 从零一维 CART 与框架对齐 | 这里限定一维、平方损失、无缺失、无并列最佳切分；一般 CART 还要搜索特征，并处理权重、分类不纯度和剪枝 |
+| 2 | 2. Bagging 的相关性下限与袋外估计 | 增加树数只压低独立部分，树间共同误差不会消失；OOB 使用未含该行的 bootstrap 树，但不自动满足轨迹分组或时间边界 |
+| 3 | 3. 平方损失提升就是拟合残差 | 平方损失的负梯度与残差成比例；其他损失需相应伪残差和叶值更新 |
+| 4 | 4. 直方图近似与外推边界 | 分箱减少候选阈值与内存，并可能损失细节；常数叶树在最外侧区域保持常数，不能自然延续真实线性趋势 |
+
+## 8. 领域连接
+
+工艺表格、成分描述符和计算元数据适合以树集成为强基线，因为阈值与非线性交互容易表达。直接用常数叶拟合能量会产生不连续导数，不能自然给出平滑力；若目标是动力学势，函数光滑性与守恒约束比单个回归分数更关键。材料筛选中的排序任务和能量面求导任务，应采用不同的模型适配标准。
+
+## 9. 常见误区与失败模式
+
+- 以为更多树可以修复共同偏差、错误标签或缺乏覆盖。
+- 把 impurity importance 当作因果效应；高基数与相关特征会影响分配。
+- 不检查叶大小就使用叶优先增长，在稀疏区域形成过细规则。
+- 认为树在任意范围都能延续训练趋势；最外侧常数叶通常无法外推斜率。
+
+## 10. 小结
+
+CART 用局部切分降低损失，Bagging 用平均减少不稳定性，森林用随机化降低相关，Boosting 用逐轮梯度修正函数。工程优化改变搜索和存储成本，不能替代评估协议，也不改变模型对输入覆盖与目标光滑性的基本限制。
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::

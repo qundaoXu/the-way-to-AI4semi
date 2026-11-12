@@ -1,0 +1,184 @@
+---
+id: M04.3
+title: 核方法与高斯过程
+priority: P0
+tags: []
+prereqs:
+- M04.2
+- M02.3
+anchors: []
+subtitle: Kernel Methods and Gaussian Processes
+module: M04
+build_status: Draft
+learn_status: Not Started
+evidence: []
+next_review: null
+last_reviewed: '2026-11-11'
+code-fold: true
+code-summary: 显示绘图代码
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import BLUE, ORANGE, use_style
+
+use_style()
+rng = np.random.default_rng(42)
+```
+
+## 0. 定位
+
+核方法把“怎样定义相似”变成函数空间的选择，高斯过程（Gaussian Process, GP）则进一步给这个空间上的函数分配概率。本章从内积、核岭回归和最大间隔分类连接到 GP 回归，推导后验、边缘似然与计算成本。SOAP–GAP 等模型的材料表示细节留给 M07.2，这里建立能够读懂它们数学结构的基础。
+
+## 1. 学习目标
+
+- 说明合法核、Gram 矩阵、显式特征映射与再生核空间的关系。
+- 推导核岭回归与 GP 回归后验，用 Cholesky 实现并与成熟框架对齐。
+- 区分潜函数不确定性、观测噪声和超参数不确定性。
+- 解释 SVM 的间隔、支持向量与 C，并估算精确 GP 的时间和存储成本。
+
+## 2. 前置知识
+
+[M04.2 线性模型](02-linear-models.qmd)、[M02.3 概率论与信息论](../../02-mathematics-statistics/notes/03-probability-information.qmd)
+
+矩阵分解见 [M02.1](../../02-mathematics-statistics/notes/01-linear-algebra.qmd)，块高斯条件化见 [M02.3](../../02-mathematics-statistics/notes/03-probability-information.qmd)。不确定性校准、主动学习与贝叶斯优化主要归属 M06.5；本章只讨论指定 GP 模型内部的条件分布。
+
+## 3. 推荐阅读
+
+1. Rasmussen 与 Williams，2006，[Gaussian Processes for Machine Learning](https://gaussianprocess.org/gpml/chapters/)，Chapter 2.1–2.3 的权重空间、函数空间与超参数；Chapter 4.1–4.2 的协方差函数；Chapter 5.4 的回归模型选择；Chapter 8 的近似方法作为后续阅读。
+2. scikit-learn [Gaussian Processes](https://scikit-learn.org/stable/modules/gaussian_process.html) 的 GPR 与 kernels；[Kernel ridge regression](https://scikit-learn.org/stable/modules/kernel_ridge.html) 与 [SVM](https://scikit-learn.org/stable/modules/svm.html) 的数学形式和参数约定。
+3. Bartók、Kondor 与 Csányi，2013，[On representing chemical environments](https://arxiv.org/abs/1209.3140)，关注 SOAP 如何定义环境相似度；此处只建立核的桥接，不展开描述符构造。
+
+## 4. 核心概念与直觉
+
+### 4.1 核是内积的接口
+
+若 k(x,x′)=〈φ(x),φ(x′)〉，就可以不显式展开高维特征而计算模型所需的内积。合法实对称核要求任意有限样本的 Gram 矩阵半正定。距离看起来合理并不保证其任意函数变换都是核；常见 RBF 核通过长度尺度定义相关的衰减范围，特征标准化因此直接影响几何。
+
+再生核 Hilbert 空间（RKHS）给每个输入一个核截面 k(x,·)，其与函数的内积等于函数在 x 的取值。带 RKHS 范数惩罚的许多问题，其解可表示为训练点核截面的线性组合；这让无限维问题变成对有限系数的求解。核选择仍是归纳偏置，不会自动生成正确的科学相似性。
+
+RBF 的平稳性表示协方差只依赖输入差，而不依赖绝对位置；各向同性还要求只依赖距离大小。给不同特征不同长度尺度可以表达各向异性，但长度大小受单位和共线性影响，不能直接当作因果重要性。核的和表示可相加的独立函数分量，核的乘积则组合相似性要求；选择应来自希望表达的变化结构，而不只从一组候选中追逐最高训练分数。
+
+### 4.2 GP 是随机函数的有限维一致分布
+
+GP 规定任意有限组函数值服从联合高斯分布，均值函数表达基准趋势，核表达协方差。加入高斯观测噪声后，后验来自块高斯条件化。@fig-core 显示观测附近约束更强，远处逐渐回到先验；这个回归先验的行为可能与某些物理边界不一致，需要显式设计均值或核。
+
+```{python}
+#| label: fig-core
+#| fig-cap: "固定 RBF 长度 0.6、观测噪声标准差 0.08 的零均值 GP。阴影是潜函数的点态后验区间，条件于指定模型，不是同时置信带。"
+#| fig-alt: '高斯过程观测附近区间收窄，远处回归先验'
+from scipy.linalg import cho_factor,cho_solve
+
+def rbf(a,b,length=.6):
+    return np.exp(-.5*((a[:,None]-b[None,:])/length)**2)
+
+x=np.array([-2.,-1.5,-.8,.5,1.,1.7]);y=np.sin(2*x)
+grid=np.linspace(-3,3,250);noise=.08
+factor=cho_factor(rbf(x,x)+noise**2*np.eye(len(x)),lower=True)
+mean=rbf(grid,x)@cho_solve(factor,y)
+solved=cho_solve(factor,rbf(x,grid))
+std=np.sqrt(np.maximum(1-np.sum(rbf(grid,x)*solved.T,axis=1),0))
+fig,ax=plt.subplots(figsize=(6.8,3.2))
+ax.fill_between(grid,mean-1.96*std,mean+1.96*std,color=BLUE,alpha=.12,label="潜函数点态 95% 后验区间")
+ax.plot(grid,mean,color=BLUE,label="后验均值");ax.scatter(x,y,s=22,color=ORANGE,zorder=3,label="观测")
+ax.set(xlabel="输入 x",ylabel="合成响应");ax.legend(fontsize=8)
+fig.tight_layout();plt.show()
+```
+
+::: {.column-margin}
+**两种对角量**：观测噪声描述数据生成，jitter 用于数值稳定。二者都会改变矩阵，但应分别记录；把大量 jitter 当作免费数值修复会改变模型。
+:::
+
+## 5. 数学原理
+
+### 5.1 核岭回归与 SVM
+
+以求和平方损失加 λ 倍 RKHS 范数定义 KRR，系数满足 (K+λI)α=y，预测为 k_*ᵀα。若损失改成平均值，矩阵中的正则量是 nλ。SVM 用 hinge loss 与权重范数平衡间隔和违例，C 越大越重视训练违例。分类决策值是有符号间隔相关分数，不是未经校准的类别概率；非线性核保留了这种间隔目标。
+
+### 5.2 GP 后验与计算
+
+假设零均值，C=K+σ_n²I，训练标签 y 与测试潜函数 f_* 联合高斯，则
+
+$$
+\boldsymbol\mu_*=\mathbf K_{*X}\mathbf C^{-1}\mathbf y,\qquad
+\mathbf\Sigma_*=\mathbf K_{**}-\mathbf K_{*X}\mathbf C^{-1}\mathbf K_{X*}.
+$$ {#eq-gp-posterior}
+
+@eq-gp-posterior 是潜函数后验；新观测的协方差还需加观测噪声。写成逆矩阵是数学表达，实现应分解 C=LLᵀ 并做三角求解。固定超参数时精确训练分解约 O(n³)、存储 O(n²)，均值预测与方差预测的成本不同，不能只看训练阶段的单个数。
+
+::: {.callout-note collapse="true" title="从联合高斯到条件分布"}
+联合协方差为 [[C,K_X*],[K_*X,K_**]]。通过令残差 f_*−K_*X C⁻¹y 与 y 不相关，可得高斯条件下二者独立；残差均值为零，协方差即 Schur 补 K_**−K_*X C⁻¹K_X*。非零先验均值时对训练标签减去均值，并在预测中加回测试均值。
+:::
+
+### 5.3 超参数与边缘似然
+
+对数边缘似然为 −½yᵀC⁻¹y−½log|C|−n/2 log(2π)。第一项奖励数据拟合，行列式项惩罚协方差体积，两者共同选择幅度、长度与噪声。局部优化可能落入不同模式；对 y 标准化会改变幅度和噪声的单位。仅优化一个超参数点后画出的区间，没有积分掉超参数不确定性，也不保证在模型失配或分布外区域正确校准。
+
+## 6. 算法与实现要点
+
+先确定输入表示与尺度，检查核矩阵对称性和数值谱，再使用 Cholesky。重复输入、极长长度尺度和极小噪声可能导致近奇异；排查数据和超参数范围后再设置必要 jitter。稀疏或诱导点近似改变计算与模型精度，需要按实际任务核验，而不是把更少样本直接说成无损精确 GP。
+
+@fig-interactive 固定观测与噪声，改变长度尺度，展示相似性假设如何影响后验均值。notebook 分别对齐后验、边缘似然梯度和 KRR 点预测，比较时关闭优化器并统一核幅度、噪声及均值约定，避免将默认值差异误判成算法错误。
+
+```{python}
+#| label: fig-interactive
+#| fig-cap: "固定标签与噪声下改变核长度尺度，比较后验均值的平滑性。"
+import plotly.graph_objects as go
+from semiai.plotting import plotly_html, plotly_layout
+
+slider_x=grid
+slider_ys=[rbf(grid,x,l)@np.linalg.solve(rbf(x,x,l)+noise**2*np.eye(len(x)),y) for l in [.15,.4,1.,2.]]
+values = [.15,.4,1.,2.]
+fig = go.Figure()
+for i, value in enumerate(values):
+    fig.add_scatter(x=slider_x, y=slider_ys[i], mode="lines", name=f"长度尺度 = {value}",
+                    line=dict(color=BLUE, width=2), visible=(i == 0))
+steps = [dict(method="update", label=str(value),
+              args=[{"visible": [j == i for j in range(len(values))]},
+                    {"title.text": f"长度尺度 = {value}"}])
+         for i, value in enumerate(values)]
+fig.update_layout(**plotly_layout(
+    title=dict(text=f"长度尺度 = {values[0]}", font=dict(size=14)),
+    xaxis=dict(title='输入 x'), yaxis=dict(title='后验均值'),
+    sliders=[dict(active=0, steps=steps, currentvalue=dict(prefix='长度尺度 = '))],
+    showlegend=False, height=400,
+))
+plotly_html(fig)
+```
+
+## 7. 实例 Notebook
+
+打开 [M04.3 实例讲解](../notebooks/03-kernels-gaussian-processes.ipynb)。在 VS Code 中选择仓库 `.venv` 内核，按顺序运行；每节按“说明 → 代码 → 输出 → 读法”组织。所有数据均为合成体系，数值比较直接打印误差或指标，图与表来自实际计算。重新执行并保存输出：`make nb M=04`。
+
+| 节 | 内容 | 输出读法 |
+|---|---|---|
+| 1 | 1. 显式特征与核矩阵 | 核技巧替换的是特征内积；有限 Gram 矩阵的微小负特征值可能来自舍入 |
+| 2 | 2. 从零 GP 后验与 scikit-learn 对齐 | alpha 表示观测噪声方差时，predict 返回的这里是潜函数标准差；预测新噪声观测还需额外加 noise² |
+| 3 | 3. 边缘似然及梯度 | 对数参数化确保长度尺度为正；边缘似然可能多峰，优化后的单点超参数没有包含超参数不确定性 |
+| 4 | 4. KRR 与 GP 均值的对应 | 对应依赖相同零均值、同一核幅度与损失归一化；KRR 点预测本身不会自动给出 GP 的概率区间 |
+| 5 | 5. SVM 的支持向量与间隔 | 支持向量是决定边界的训练样本，函数间隔取决于规范化；训练准确率这里只展示表达能力，不是泛化评价 |
+
+## 8. 领域连接
+
+SOAP 类表示用局域环境构造相似度，GAP 在此基础上学习能量等量。可微核还可通过对坐标求导关联能量和力，但力观测涉及协方差导数、单位和更大线性系统。先理解本章的小规模固定核后验，再讨论稀疏环境选择、物理对称与力标签，能把表示问题与求解问题分开检查。
+
+## 9. 常见误区与失败模式
+
+- 将任何距离函数都称作核，未检查半正定条件。
+- 混淆核长度、信号幅度、观测噪声和数值 jitter，导致区间含义不明。
+- 将 GP 标准差当作无条件可靠性保证；它条件于选定模型与超参数。
+- 与库比较时忽略 normalize_y、RBF 的 gamma=1/(2l²) 或正则损失归一化。
+
+## 10. 小结
+
+核定义相似性和函数偏好，KRR 用它做正则化拟合，SVM 用它建立间隔，GP 用它规定协方差。后验推导简单，可靠实现却依赖尺度、数值分解与清晰的噪声语义。精确对齐小系统是理解更大科学核模型的起点。
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::

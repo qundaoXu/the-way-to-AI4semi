@@ -1,0 +1,186 @@
+---
+id: M04.1
+title: 统计学习基础
+priority: P0
+tags: []
+prereqs:
+- M02.1
+- M02.3
+anchors: []
+subtitle: Statistical Learning Foundations
+module: M04
+build_status: Draft
+learn_status: Not Started
+evidence: []
+next_review: null
+last_reviewed: '2026-11-11'
+code-fold: true
+code-summary: 显示绘图代码
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import BLUE, GRAY, ORANGE, PURPLE, use_style
+
+use_style()
+rng = np.random.default_rng(42)
+```
+
+## 0. 定位
+
+统计学习研究的是如何从有限数据选择预测规则，以及为什么训练误差不足以说明新数据表现。本章把经验风险最小化、模型类、优化与泛化连接起来。对材料研究者，可以把模型类理解为允许的函数空间，把训练样本理解为有限覆盖；但泛化取决于抽样机制，不能仅靠拟合残差像数值收敛误差一样被压到零。
+
+## 1. 学习目标
+
+- 写出总体风险与经验风险，区分模型近似、有限样本估计和优化误差。
+- 用重复训练集解释平方损失的偏差、方差与不可约噪声。
+- 通过训练曲线和验证曲线区分欠拟合、过拟合与优化失败。
+- 说明正则化、先验和归纳偏置为何帮助特定任务，并正确限定 No Free Lunch 的含义。
+
+## 2. 前置知识
+
+[M02.1 线性代数](../../02-mathematics-statistics/notes/01-linear-algebra.qmd)、[M02.3 概率论与信息论](../../02-mathematics-statistics/notes/03-probability-information.qmd)
+
+损失与似然的连接见 [M02.3](../../02-mathematics-statistics/notes/03-probability-information.qmd)，正则化线性模型的求解见 [M04.2](02-linear-models.qmd)。数据划分与分布偏移的主要讨论在 [M03.4](../../03-data-science/notes/04-splitting-leakage-shift.qmd)，这里讨论的是给定目标分布上的学习问题。
+
+## 3. 推荐阅读
+
+1. James、Witten、Hastie、Tibshirani 与 Taylor，2023，[An Introduction to Statistical Learning with Applications in Python](https://www.statlearning.com/)，Chapter 2 Statistical Learning，重点 What Is Statistical Learning? 和 Assessing Model Accuracy；本章把其中直觉整理为风险与偏差方差的明确表达。
+2. scikit-learn [Validation curves](https://scikit-learn.org/stable/modules/learning_curve.html)，重点 bias–variance、validation curve 与 learning curve，区分调参后验证分数和独立泛化估计。
+3. M02.4 的统计估计作为配套阅读：抽样波动不是优化器噪声，置信区间也不等于模型在某个输入上的预测区间。
+
+## 4. 核心概念与直觉
+
+### 4.1 学习算法选择一个函数
+
+给定函数类 F、损失 ℓ 和训练集 D，经验风险最小化（ERM）选择使训练平均损失较小的函数。算法输出依赖 D：换一批样本，即使优化精确，结果也会变化。学习问题同时包含输入表示、函数类、损失、正则和选择流程，不能只用某个 estimator 的名字完整定义。
+
+近似误差来自函数类无法表达真实关系，估计误差来自有限样本，优化误差来自未找到类内目标的最优解。这种区分决定下一步：增加迭代可能减少优化误差，却不能补足输入信息；增加容量可能减少近似偏差，却可能让小数据更不稳定。@fig-core 用同样观测比较三个阶数，展示训练贴合与函数形状之间的差异。
+
+```{python}
+#| label: fig-core
+#| fig-cap: "28 个带高斯噪声的合成观测。虚线为真实条件均值，三条实线是同一训练集上的拟合，纵轴范围固定以便比较。"
+#| fig-alt: '低阶欠拟合和高阶振荡与三阶拟合的对比'
+from numpy.polynomial import Polynomial
+local=np.random.default_rng(10)
+x=np.sort(local.uniform(-1,1,28));y=np.sin(np.pi*x)+local.normal(0,.22,len(x))
+grid=np.linspace(-1,1,300)
+fig,ax=plt.subplots(figsize=(6.8,3.2))
+ax.plot(grid,np.sin(np.pi*grid),color=GRAY,ls="--",label="生成均值")
+ax.scatter(x,y,s=17,color=GRAY,alpha=.7)
+for degree,color in [(1,ORANGE),(3,BLUE),(12,PURPLE)]:
+    fit=Polynomial.fit(x,y,degree,domain=[-1,1])
+    ax.plot(grid,fit(grid),color=color,label=f"阶数 {degree}",lw=1.1)
+ax.set(xlabel="输入 x",ylabel="响应",ylim=(-2,2));ax.legend(ncol=2)
+fig.tight_layout();plt.show()
+```
+
+### 4.2 容量不是单个参数计数
+
+高阶多项式提供更复杂的函数，也可能在稀疏覆盖处剧烈振荡。模型复杂度还取决于范数、结构约束、数据几何和优化选择；参数更多不必然导致更差泛化，现代过参数化模型也可能出现双下降等现象。因此经典 U 形曲线是一种有用情形，不是所有任务的定律。
+
+训练误差高且验证误差高，可能是类太简单，也可能是没有优化好、尺度错误或标签有噪声。训练误差低而验证误差高提示估计波动或任务边界不匹配，需要结合学习曲线、分组与覆盖诊断。学习曲线随样本量变化，验证曲线随复杂度或超参数变化，两者不能混用。
+
+::: {.column-margin}
+**不可约噪声取决于信息集合**：给定当前描述符的条件方差可以包含未编码的结构信息。加入更完整输入可能降低它；“不可约”不是说任何实验和任何表示都无法改进。
+:::
+
+## 5. 数学原理
+
+### 5.1 风险与训练目标
+
+总体风险和正则化经验目标分别为
+
+$$
+R(f)=\mathbb E_{(\mathbf x,y)\sim P}\ell(f(\mathbf x),y),\qquad
+\hat f=\arg\min_{f\in\mathcal F}\left[\frac1n\sum_{i=1}^n\ell(f(\mathbf x_i),y_i)+\lambda\Omega(f)\right].
+$$ {#eq-risk-erm}
+
+@eq-risk-erm 中 P 是声明的未来分布，λ 控制惩罚强度，Ω 表示函数偏好。经验损失估计总体风险的前提需要讨论抽样和依赖；训练目标还含正则项，不能把训练目标值直接当作预测风险。不同库使用求和或平均损失时，λ 的数值含义可能差一个 n。
+
+### 5.2 平方损失的偏差方差
+
+令真实条件均值为 m(x)，标签 y=m(x)+ε，E[ε|x]=0，独立测试标签的条件方差为 σ²(x)。对训练集 D 的随机性平均可得
+
+$$
+\mathbb E_{D,y\mid x}\big[(\hat f_D(x)-y)^2\big]
+=\big(\mathbb E_D\hat f_D(x)-m(x)\big)^2+\operatorname{Var}_D(\hat f_D(x))+\sigma^2(x).
+$$ {#eq-bias-variance}
+
+@eq-bias-variance 是指定 x 的平方损失恒等式，不能不加修改地套到零一分类误差。降低某一项可能提高另一项，实际取舍要以目标分布上的整体风险判断。
+
+::: {.callout-note collapse="true" title="展开平方得到分解"}
+把预测误差写为 (f̂−E_Df̂)+(E_Df̂−m)−ε。第一项对 D 的均值为零，噪声条件均值为零且与训练集独立，因此交叉项期望消失。三个平方项对应方差、偏差平方和标签噪声。重复拟合只能估计对训练集随机性的平均，单个模型残差不能直接分离三项。
+:::
+
+### 5.3 归纳偏置与 No Free Lunch
+
+正则化、平滑核、对称性和局域性都表达归纳偏置（inductive bias）：偏好某些函数而排除或压低其他函数。No Free Lunch 在对所有可能目标规则作相应均匀平均等严格设定下，说明没有普遍占优的学习器；它不意味着现实中无法选择更好的方法。科学任务并不均匀遍历所有函数，利用结构假设正是产生可迁移学习的来源。
+
+## 6. 算法与实现要点
+
+固定数据生成机制、样本预算和比较指标，再改变模型复杂度或正则强度。优化收敛、训练拟合与独立评估分别记录。notebook 以多次重新抽样核验偏差方差恒等式，并用一个固定有限阈值类展示统一收敛的量级；后者要求有界损失，不能把回归中的任意大平方误差直接代入。
+
+@fig-interactive 在同一固定样本上切换多项式阶数，观察覆盖空白处的变化。曲线只是一份拟合，不给出重复抽样不确定性；需要与 notebook 的多训练集实验配合理解。正式调参时应把表示变换和选择放进训练侧验证流程。
+
+```{python}
+#| label: fig-interactive
+#| fig-cap: "同一观测集切换模型阶数；局部贴合并不等于整个区间内预测可靠。"
+import plotly.graph_objects as go
+from semiai.plotting import plotly_html, plotly_layout
+
+slider_x=grid
+slider_ys=[Polynomial.fit(x,y,d,domain=[-1,1])(grid) for d in [1,3,6,12]]
+values = [1,3,6,12]
+fig = go.Figure()
+for i, value in enumerate(values):
+    fig.add_scatter(x=slider_x, y=slider_ys[i], mode="lines", name=f"多项式阶数 = {value}",
+                    line=dict(color=BLUE, width=2), visible=(i == 0))
+steps = [dict(method="update", label=str(value),
+              args=[{"visible": [j == i for j in range(len(values))]},
+                    {"title.text": f"多项式阶数 = {value}"}])
+         for i, value in enumerate(values)]
+fig.update_layout(**plotly_layout(
+    title=dict(text=f"多项式阶数 = {values[0]}", font=dict(size=14)),
+    xaxis=dict(title='输入 x'), yaxis=dict(title='拟合响应'),
+    sliders=[dict(active=0, steps=steps, currentvalue=dict(prefix='多项式阶数 = '))],
+    showlegend=False, height=400,
+))
+plotly_html(fig)
+```
+
+## 7. 实例 Notebook
+
+打开 [M04.1 实例讲解](../notebooks/01-statistical-learning.ipynb)。在 VS Code 中选择仓库 `.venv` 内核，按顺序运行；每节按“说明 → 代码 → 输出 → 读法”组织。所有数据均为合成体系，数值比较直接打印误差或指标，图与表来自实际计算。重新执行并保存输出：`make nb M=04`。
+
+| 节 | 内容 | 输出读法 |
+|---|---|---|
+| 1 | 1. 经验风险与候选函数选择 | 网格最优只在给定离散类中最优；扩大搜索精度只减少优化近似，不会消除抽样噪声或错误模型类带来的偏差 |
+| 2 | 2. 多训练集的偏差–方差分解 | 方差来自重新抽取训练集，不是同一次拟合的残差方差；这里报告有限重复的分解，并加上已知独立标签噪声的解析期望 |
+| 3 | 3. 正则化与样本量的共同作用 | 正则化改变学习算法及其偏差方差，样本量改变估计波动 |
+| 4 | 4. 有限假设类的统一界 | 界依赖独立同分布样本、有界损失和预先固定的有限函数类；一次落在界内不是对高概率定理的实验证明 |
+
+## 8. 领域连接
+
+能量、力、应力的联合训练不只是多几个输出：损失权重改变模型优先拟合的误差，样本重复频率改变经验分布，对称性改变函数类。分析 MLIP 泛化时，应分别检查结构覆盖、模型约束和优化误差；低训练误差不能证明未见相区可靠。物理归纳偏置是否有效，仍需在明确的目标任务上比较。
+
+## 9. 常见误区与失败模式
+
+- 把过拟合简单等同于参数多，忽略正则、数据量和表示结构。
+- 从一个模型的残差直接报告偏差方差分解；分解需要训练集随机性的定义。
+- 用更多优化迭代解决模型类错误，或用更多数据掩盖数据契约错误。
+- 将 No Free Lunch 用作拒绝比较基线的理由；现实分布结构才是比较的依据。
+
+## 10. 小结
+
+统计学习把函数偏好、有限数据和未来风险连接起来。训练目标可精确计算，泛化风险需要抽样与评估假设；偏差方差解释重复拟合的波动，正则化表达有方向的偏好。下一步是在具体模型中检验这些取舍，而不是只追求更低的训练损失。
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::

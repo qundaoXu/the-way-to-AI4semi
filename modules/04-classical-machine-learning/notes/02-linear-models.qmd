@@ -22,17 +22,20 @@ code-summary: "显示绘图代码"
 import matplotlib.pyplot as plt
 import numpy as np
 
-BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
-INK, MUTED, GRID, SURFACE = "#0b0b0b", "#52514e", "#e4e2da", "#fcfcfb"
-plt.rcParams.update({
-    "figure.dpi": 150, "figure.facecolor": SURFACE, "axes.facecolor": SURFACE,
-    "savefig.facecolor": SURFACE, "axes.edgecolor": MUTED, "axes.labelcolor": MUTED,
-    "xtick.color": MUTED, "ytick.color": MUTED, "text.color": INK,
-    "axes.spines.top": False, "axes.spines.right": False,
-    "axes.grid": True, "grid.color": GRID, "grid.linewidth": 0.6,
-    "lines.linewidth": 2.0, "font.size": 10, "legend.frameon": False,
-    "mathtext.fontset": "cm",
-})
+from semiai.plotting import (
+    AQUA,
+    BLUE,
+    GRAY,
+    INK,
+    MUTED,
+    ORANGE,
+    SURFACE,
+    plotly_html,
+    plotly_layout,
+    use_style,
+)
+
+use_style()
 ```
 
 ## 0. 定位
@@ -51,7 +54,7 @@ plt.rcParams.update({
 
 ## 2. 前置知识
 
-本章用到 M02.1（正交投影、SVD、条件数）、M02.2（向量与矩阵求导）和 M02.4（最大似然与 MAP）。这三章尚未建设；如果对其中某一项不熟，先读第 3 节推荐资源中标注的补充章节。
+本章用到 [M02.1 线性代数](../../02-mathematics-statistics/notes/01-linear-algebra.qmd)中的正交投影、SVD 与条件数，[M02.2 微积分与矩阵微积分](../../02-mathematics-statistics/notes/02-matrix-calculus.qmd)中的梯度，以及 [M02.4 数理统计](../../02-mathematics-statistics/notes/04-mathematical-statistics.qmd)中的最大似然与 MAP。
 
 符号遵循[数学符号约定](../../../docs/math-notation.md)：$X \in \mathbb{R}^{n \times d}$ 是设计矩阵，$\mathbf{y} \in \mathbb{R}^n$ 是目标，$\mathbf{w} \in \mathbb{R}^d$ 是系数，$b$ 是截距。
 
@@ -189,19 +192,17 @@ steps = [
                {"title.text": labels[i]}])
     for i, a in enumerate(alphas)
 ]
-fig.update_layout(
+fig.update_layout(**plotly_layout(
     title=dict(text=labels[start], font=dict(size=13, color=MUTED), x=0.02),
     sliders=[dict(active=start, steps=steps, currentvalue=dict(prefix="α = "), pad=dict(t=30))],
-    xaxis=dict(title="x", gridcolor=GRID, zeroline=False),
-    yaxis=dict(title="y", range=[-2, 2], gridcolor=GRID, zeroline=False),
-    paper_bgcolor=SURFACE, plot_bgcolor=SURFACE, font=dict(color=INK),
+    xaxis=dict(title="x"),
+    yaxis=dict(title="y", range=[-2, 2]),
     legend=dict(orientation="h", y=1.02, x=1, xanchor="right", yanchor="bottom"),
     margin=dict(l=50, r=20, t=70, b=20), height=430,
-)
+))
 # 不用 fig.show()：Plotly 默认的 notebook 渲染器会再加载一份 MathJax 3，
 # 与页面自身的 MathJax 冲突，导致全页公式不渲染。
-from IPython.display import HTML
-HTML(fig.to_html(full_html=False, include_plotlyjs="cdn", include_mathjax=False))
+plotly_html(fig)
 ```
 
 ## 5. 数学原理
@@ -308,7 +309,7 @@ for ax, alphas_, path, name in [(axes[0], ridge_alphas, ridge_path, "Ridge"),
                                 (axes[1], lasso_alphas, lasso_path, "Lasso")]:
     for j in range(d):
         relevant = w_true[j] != 0
-        ax.plot(alphas_, path[:, j], color=BLUE if relevant else "#a9a79d",
+        ax.plot(alphas_, path[:, j], color=BLUE if relevant else GRAY,
                 lw=2 if relevant else 1.2, zorder=3 if relevant else 2)
     ax.axhline(0, color=MUTED, lw=0.8)
     ax.set_xscale("log")
@@ -316,7 +317,7 @@ for ax, alphas_, path, name in [(axes[0], ridge_alphas, ridge_path, "Ridge"),
     ax.set_title(name, loc="left", fontsize=11, color=INK)
 axes[0].set_ylabel("coefficient")
 axes[0].plot([], [], color=BLUE, label="true coefficient $\\neq 0$")
-axes[0].plot([], [], color="#a9a79d", lw=1.2, label="true coefficient $= 0$")
+axes[0].plot([], [], color=GRAY, lw=1.2, label="true coefficient $= 0$")
 axes[0].legend(loc="upper right", fontsize=8.5)
 fig.tight_layout()
 plt.show()

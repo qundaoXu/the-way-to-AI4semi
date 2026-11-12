@@ -1,0 +1,186 @@
+---
+id: M04.7
+title: 模型评价与解释
+priority: P0
+tags: []
+prereqs:
+- M04.1
+- M04.2
+anchors:
+- A3
+subtitle: Model Evaluation and Interpretation
+module: M04
+build_status: Draft
+learn_status: Not Started
+evidence: []
+next_review: null
+last_reviewed: '2026-11-11'
+code-fold: true
+code-summary: 显示绘图代码
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import BLUE, GRAY, ORANGE, use_style
+
+use_style()
+rng = np.random.default_rng(42)
+```
+
+## 0. 定位
+
+模型评价要回答“对什么对象、按什么权重、以什么代价比较”，解释方法则回答“这个已训练模型怎样依赖输入”。本章把回归与分类指标、交叉验证、超参数搜索、概率校准和特征归因连接为可复查流程。分数与解释都服务于任务，不能取代数据边界，也不能把模型内部关联直接提升为科学因果结论。
+
+## 1. 学习目标
+
+- 根据误差分布、类别率和决策成本选择指标，并明确逐行或逐组权重。
+- 把预处理、特征选择和调参放进正确的交叉验证层次。
+- 区分排序、分类阈值和概率校准，用独立数据评估映射效果。
+- 比较系数、置换重要性与 Shapley 归因的含义，说明相关特征与基线选择的限制。
+
+## 2. 前置知识
+
+[M04.1 统计学习基础](01-statistical-learning.qmd)、[M04.2 线性模型](02-linear-models.qmd)
+
+泄漏、组和时间边界主要归属 [M03.4](../../03-data-science/notes/04-splitting-leakage-shift.qmd)。这里以该边界为前提组织模型比较；预测不确定性的系统评价、覆盖与主动学习见 M06.5，不与分类概率校准混为同一问题。
+
+## 3. 推荐阅读
+
+1. scikit-learn [Metrics and scoring](https://scikit-learn.org/stable/modules/model_evaluation.html)，重点回归 MAE/MSE/R²、分类混淆矩阵、ROC、PR 与 proper scoring rules；[Cross-validation](https://scikit-learn.org/stable/modules/cross_validation.html) 的分层、分组、时间与嵌套验证。
+2. scikit-learn [Hyper-parameter tuning](https://scikit-learn.org/stable/modules/grid_search.html) 的 grid/random search 与 nested CV；[Probability calibration](https://scikit-learn.org/stable/modules/calibration.html) 的 reliability diagram、sigmoid 与 isotonic。
+3. scikit-learn [Permutation feature importance](https://scikit-learn.org/stable/modules/permutation_importance.html) 的相关特征问题；Lundberg 与 Lee，2017，[A Unified Approach to Interpreting Model Predictions](https://arxiv.org/abs/1705.07874)，重点加性归因、局部准确性与缺失特征的定义。
+
+## 4. 核心概念与直觉
+
+### 4.1 指标自带权重和偏好
+
+MAE 按绝对偏差计罚，RMSE 更强调尾部；二者保留响应单位，MSE 则单位平方。R² 相对该评估集合的均值基线衡量平方误差改善，可以为负，在恒定响应下还存在退化约定。不同响应方差的数据集之间，R² 不能替代绝对误差的直接比较。总能量、每原子能量与每体系平均也对应不同权重。
+
+分类 accuracy 容易被多数类主导，precision 与 recall 对应告警可信度和覆盖。F1 隐含一种折中，不表达所有实际成本；ROC AUC 评价排序，PR 和 AP 更依赖正类比例。多分类还要说明 micro、macro 或按支持数加权的聚合方式。选择应在看测试结果之前与任务一起确定。
+
+### 4.2 概率正确与排序正确不同
+
+若模型给一组样本概率 0.8，理想校准要求其中正类频率约为 0.8；模型是否能把正类排在前面是另一维能力。@fig-core 的单调校准可以明显改变概率质量而保持排序。可靠性曲线依赖分箱与样本量，稀疏尾箱的折线波动不能直接解释成机制。
+
+```{python}
+#| label: fig-core
+#| fig-cap: "独立的 2500 个校准与 5000 个测试合成样本。可靠性曲线用十个等数量箱；折线为箱内频率，无误差带，不能忽略有限样本波动。"
+#| fig-alt: '独立校准使过度自信曲线更接近对角线'
+from scipy.special import expit
+from sklearn.linear_model import LogisticRegression
+from sklearn.calibration import calibration_curve
+local=np.random.default_rng(23)
+cal_logit=local.normal(0,1.5,2500);cal_y=local.binomial(1,expit(cal_logit))
+test_logit=local.normal(0,1.5,5000);test_y=local.binomial(1,expit(test_logit))
+calibrator=LogisticRegression(C=1e6).fit((3*cal_logit)[:,None],cal_y)
+raw=expit(3*test_logit);calibrated=calibrator.predict_proba((3*test_logit)[:,None])[:,1]
+fig,ax=plt.subplots(figsize=(5.8,3.4))
+ax.plot([0,1],[0,1],color=GRAY,ls="--",lw=.8)
+for p,color,name in [(raw,ORANGE,"过度自信分数"),(calibrated,BLUE,"独立校准后")]:
+    fraction,mean=calibration_curve(test_y,p,n_bins=10,strategy="quantile")
+    ax.plot(mean,fraction,"o-",color=color,label=name,ms=4,lw=1)
+ax.set(xlabel="分箱平均预测概率",ylabel="分箱实际正类比例",xlim=(0,1),ylim=(0,1))
+ax.legend();fig.tight_layout();plt.show()
+```
+
+::: {.column-margin}
+**评估单位**：按帧、轨迹或体系平均都可合理，但回答不同问题。先写权重再汇总；对两模型使用完全相同的样本与权重，才能形成配对比较。
+:::
+
+## 5. 数学原理与设计取舍
+
+### 5.1 概率评分与决策阈值
+
+二分类 Brier score 与 log loss 为
+
+$$
+\operatorname{BS}=\frac1n\sum_i(p_i-y_i)^2,\qquad
+\operatorname{NLL}=-\frac1n\sum_i[y_i\log p_i+(1-y_i)\log(1-p_i)].
+$$ {#eq-probability-scores}
+
+@eq-probability-scores 在总体期望下鼓励报告真实条件概率，log loss 尤其惩罚自信错误。它们同时受分辨能力、数据本身不确定性和校准影响，不是纯校准度量。校准器要在独立于基础模型拟合的数据上学习，最终效果再由未用于拟合映射的数据检验。
+
+::: {.callout-note collapse="true" title="从误报和漏报成本得到阈值"}
+若只在误分类时付费，预测正类的期望成本为 C_FP(1−p)，预测负类为 C_FN p。前者更小时选择正类，即 p>C_FP/(C_FP+C_FN)。这个推导要求 p 是相应部署分布下的条件概率，且成本定义和可用行动只有这两种；容量约束或其他收益会改变规则。
+:::
+
+### 5.2 嵌套选择评价的是流程
+
+内层交叉验证选择超参数，外层留出评价完整选择算法。各折的训练部分内拟合缩放、填补、降维与特征选择；否则外层也可能被预处理污染。KFold 适用于相应独立样本假设，StratifiedKFold 保持类别比例，GroupKFold 保持组边界，TimeSeriesSplit 保持方向。折数更多不自动修复错误独立单位。
+
+Grid search 在给定网格穷举，random search 可把预算分配到更广参数范围；二者预算应公平记录。选择后的最佳内层分数存在选择偏好，不能作为最终无偏成绩。外层折共享训练数据，折分数之间相关；简单以折数当独立重复数会夸大统计精度。
+
+### 5.3 解释的是模型与参考分布
+
+系数取决于尺度与共线性，树不纯度重要性偏好高基数特征；置换重要性衡量破坏某列后，指定数据分布与评分下的性能损失。相关替代特征可能让单列重要性变小，独立置换也可能制造不合理组合。它不是变量的固有科学价值。
+
+Shapley 值平均一个特征在所有加入顺序中的边际贡献，可使基准值加各特征归因重构预测。关键在如何定义“缺少某特征”：固定基线、边缘积分或条件积分对应不同博弈。相关特征、背景样本、输出尺度都会改变分配。局部可加性是归因规则的性质，不保证解释具有因果含义。
+
+## 6. 算法与实现要点
+
+保存每个测试样本的真实值、预测、分数、组 ID 和权重，再由同一份预测表计算指标，避免比较时集合悄然变化。校准与阈值各自保留训练来源；解释前先确认模型在对应集合有可接受的预测能力，对失效模型画精美归因图不会增加可信度。
+
+@fig-interactive 固定合成概率分布，切换决策阈值查看期望成本。notebook 还枚举三特征的 Shapley 博弈核验可加性，让解释定义可见；实际大模型的近似归因需要额外检查采样误差和背景敏感性。
+
+```{python}
+#| label: fig-interactive
+#| fig-cap: "误报成本 1、漏报成本 5 时的逐样本期望成本；最优概率阈值为 1/6。"
+import plotly.graph_objects as go
+from semiai.plotting import plotly_html, plotly_layout
+
+slider_x=np.linspace(.01,.99,240)
+slider_ys=[np.where(slider_x>=t,1*(1-slider_x),5*slider_x) for t in [.1,1/6,.5,.8]]
+values = [.1,1/6,.5,.8]
+fig = go.Figure()
+for i, value in enumerate(values):
+    fig.add_scatter(x=slider_x, y=slider_ys[i], mode="lines", name=f"阈值 = {value}",
+                    line=dict(color=BLUE, width=2), visible=(i == 0))
+steps = [dict(method="update", label=str(value),
+              args=[{"visible": [j == i for j in range(len(values))]},
+                    {"title.text": f"阈值 = {value}"}])
+         for i, value in enumerate(values)]
+fig.update_layout(**plotly_layout(
+    title=dict(text=f"阈值 = {values[0]}", font=dict(size=14)),
+    xaxis=dict(title='已校准正类概率'), yaxis=dict(title='期望误分类成本'),
+    sliders=[dict(active=0, steps=steps, currentvalue=dict(prefix='阈值 = '))],
+    showlegend=False, height=400,
+))
+plotly_html(fig)
+```
+
+## 7. 实例 Notebook
+
+打开 [M04.7 实例讲解](../notebooks/07-evaluation-interpretation.ipynb)。在 VS Code 中选择仓库 `.venv` 内核，按顺序运行；每节按“说明 → 代码 → 输出 → 读法”组织。所有数据均为合成体系，数值比较直接打印误差或指标，图与表来自实际计算。重新执行并保存输出：`make nb M=04`。
+
+| 节 | 内容 | 输出读法 |
+|---|---|---|
+| 1 | 1. 回归指标、尾部与分组权重 | 按行平均把更多权重给大组，等组平均回答随机选一个组时的表现；两者都可以合理，但不能在比较模型时悄悄切换 |
+| 2 | 2. 排序、阈值与成本 | 阈值变化改变漏报与误报，AUC 不会告诉你采用哪个操作点；概率若校准，成本比可给决策阈值，但仍需按部署成本和容量验证 |
+| 3 | 3. 嵌套选择与完整 Pipeline | 外层误差评价的是带选择的算法；三个外层折共享部分训练数据，不能把折分数当三个完全独立实验直接套标准误 |
+| 4 | 4. 概率校准与排序的区别 | 单调映射保持排序，因此 AUC 可以相同而概率质量不同；可靠性曲线分箱有波动，Brier 与 log loss 评价的不只是纯校准误差 |
+| 5 | 5. 置换重要性与精确 Shapley 分解 | 这是固定零基线替换的有限博弈，不是条件期望 SHAP 或 TreeSHAP 实现；基线、缺失特征定义和相关结构改变解释，局部可加性不等于因果识别 |
+
+## 8. 领域连接
+
+势能面比较应分别报告能量、力、应力及结构分组，明确各项单位和平均方式；工艺分类应进一步报告在可接受误报预算下的召回。成分或描述符的重要性可以生成候选解释，但需独立实验或机制分析支持。指标选择与科学目标之间的层次关系，在下一章研究方法论进一步展开。
+
+## 9. 常见误区与失败模式
+
+- 在测试分数上选择超参数、阈值或校准映射，再把同一分数当独立评价。
+- 只报告一个总体指标，隐藏尾部、少数组和类别率变化。
+- 把 Brier 改善全部归因为校准，或把 AUC 高当作概率准确。
+- 把 SHAP 或置换归因当作干预效应，忽略背景与相关特征。
+
+## 10. 小结
+
+指标定义价值取向，验证定义证据边界，校准定义概率语义，解释定义模型依赖。把它们放在明确的数据单位和选择流程下，才能让模型比较可复查，也让解释保持在数据实际支持的范围内。
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::

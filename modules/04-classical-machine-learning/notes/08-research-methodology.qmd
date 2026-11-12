@@ -1,0 +1,177 @@
+---
+id: M04.8
+title: ML 研究方法论
+priority: P0
+tags: []
+prereqs:
+- M04.7
+- M02.4
+anchors:
+- A3
+subtitle: ML Research Methodology
+module: M04
+build_status: Draft
+learn_status: Not Started
+evidence: []
+next_review: null
+last_reviewed: '2026-11-11'
+code-fold: true
+code-summary: 显示绘图代码
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import BLUE, ORANGE, use_style
+
+use_style()
+rng = np.random.default_rng(42)
+```
+
+## 0. 定位
+
+ML 研究方法论把一个更低的分数转化为可以评估的科学主张：改进来自哪里，比较是否公平，波动有多大，以及改进能否传递到最终目标。本章以基线、消融、配对重复和代理指标为主线，建立阅读与复现论文的工作方式。它不要求把每个实验都做成大型 benchmark，而是让每个比较都有清楚的对象和证据单位。
+
+## 1. 学习目标
+
+- 为具体主张选择强度合适的基线，控制数据、搜索、训练和计算预算。
+- 设计能隔离机制的消融，区分去掉组件、重新调参和改变容量的影响。
+- 用配对差值、多随机种子和适当置信区间报告改进，识别伪重复与多重选择。
+- 建立代理误差、导数、轨迹和科学可用性的分层评价，并组织最小可复现记录。
+
+## 2. 前置知识
+
+[M04.7 模型评价与解释](07-evaluation-interpretation.qmd)、[M02.4 数理统计](../../02-mathematics-statistics/notes/04-mathematical-statistics.qmd)
+
+置信区间、bootstrap 和多重检验见 [M02.4](../../02-mathematics-statistics/notes/04-mathematical-statistics.qmd)，指标与嵌套验证见 [M04.7](07-evaluation-interpretation.qmd)。这里强调实验组织与科学结论，不重新推导这些统计工具，也不替学习者裁定模块毕业。
+
+## 3. 推荐阅读
+
+1. Demšar，2006，[Statistical Comparisons of Classifiers over Multiple Data Sets](https://jmlr.org/papers/v7/demsar06a.html)，阅读多数据集比较与配对检验的前提；该文的跨数据集结论不能直接当作任意单数据集交叉验证折检验的许可。
+2. SciPy [ttest_rel](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.ttest_rel.html) 与 [bootstrap](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.bootstrap.html)，重点配对、统计量、置信区间与随机源；与 M02.4 的重复抽样解释对应。
+3. NeurIPS 官方 [Paper Checklist Guidelines](https://neurips.cc/public/guides/PaperChecklist)，重点 claims、experimental settings、error bars、compute resources 与 reproducibility 部分，用于组织证据，不把勾选清单本身当作可靠性证明。
+
+## 4. 核心概念与直觉
+
+### 4.1 基线定义“改进”的参照
+
+至少考虑简单统计基线、成熟模型基线和与论文主张最接近的强基线。常数预测能发现指标是否具有基本意义，线性或核方法提供小数据参照，领域方法检验新方法是否值得额外成本。所有方法应共享数据边界、标签、指标与可比预算；给新方法充分搜索而给基线默认值，会混合方法收益与调参收益。
+
+公平不一定要求完全相同超参数或完全相同训练步数，而应与主张匹配：同等标注成本、同等计算预算和各自充分调参回答不同问题。报告这些资源轴比只展示胜出的单个分数更有解释力。数据清洗、预训练数据和人工选择也是预算的一部分。
+
+### 4.2 消融必须对应一个问题
+
+去掉某组件后性能变化，可能来自机制、参数量、计算量、优化难度或超参数不再合适。若问题是“组件本身提供什么”，尽量控制容量和预算；若问题是“移除此组件后的最佳替代方案”，则允许合理重新调参，并明确评价对象改变。组件之间有交互，逐一删除不总能恢复联合贡献，可用小规模因子设计检查组合。
+
+代理指标更好也可能远离最终目标。@fig-core 的两个解析势都接近参考能量，但高频小振幅扰动放大了导数误差；因此能量 RMSE 与动力学可用性之间还需要力、平滑性、对称性和轨迹检验的证据桥梁。
+
+```{python}
+#| label: fig-core
+#| fig-cap: "两个解析扰动的误差：A 加常数能量偏移，B 加 0.005 sin(40x)。力均由各自能量解析求导，因此小能量误差仍可带来较大力误差；无抽样误差条。"
+#| fig-alt: '常数能量偏移不改变力，小幅振荡产生明显力误差'
+x=np.linspace(-1,1,1200);energy=.5*x*x;force=-x
+predictions={"A：能量常数偏移":(energy+.03,force),"B：小幅高频扰动":(energy+.005*np.sin(40*x),force-.2*np.cos(40*x))}
+fig,axes=plt.subplots(1,2,figsize=(7,3))
+for (name,(e,f)),color in zip(predictions.items(),[BLUE,ORANGE],strict=True):
+    axes[0].plot(x,e-energy,color=color,label=name,lw=1)
+    axes[1].plot(x,f-force,color=color,lw=1)
+axes[0].set(xlabel="无量纲坐标",ylabel="能量误差（合成单位）")
+axes[1].set(xlabel="无量纲坐标",ylabel="力误差（合成单位）")
+axes[0].legend(fontsize=7);fig.tight_layout();plt.show()
+```
+
+::: {.column-margin}
+**随机性的来源**：初始化、批次顺序、训练抽样、数据划分和标注噪声是不同层级。写“八个种子”之前先说明它们改变了什么，哪些条件保持固定。
+:::
+
+## 5. 数学原理与证据单位
+
+### 5.1 用差值比较模型
+
+对同一独立单位 i 上的两方法误差定义 d_i=e_{A,i}−e_{B,i}，均值改进与标准误为
+
+$$
+\bar d=\frac1m\sum_i d_i,\qquad
+\operatorname{SE}(\bar d)=\frac{s_d}{\sqrt m}.
+$$ {#eq-paired-improvement}
+
+@eq-paired-improvement 的 m 必须对应所声明随机性的独立重复单位。多个随机初始化只能说明给定数据下的优化波动，不能自动覆盖新数据集、新组分或新任务的不确定性。相同轨迹中的上千帧不能当作上千个独立材料体系；交叉验证折也因共享训练数据而相关。
+
+::: {.callout-note collapse="true" title="配对为什么能减少比较噪声"}
+Var(e_A−e_B)=Var(e_A)+Var(e_B)−2Cov(e_A,e_B)。相同难样本常使两方法误差同向变化，正协方差让配对差值比两个独立均值更精确。若真实独立单位是轨迹，应对轨迹级差值或组级重采样分析，不能只在帧级配对后忽略组内相关。
+:::
+
+### 5.2 效应量、显著性与选择
+
+置信区间表达对指定重复抽样机制的波动，p 值检验一个零假设；二者都不等于改进具有实际价值的概率。先报告误差差值、相对成本和区间，再说明检验假设。比较多个模型、多个指标和多个子组时，选择性报告会放大偶然结果；探索与确认区分清楚，比给大量事后检验加一串星号更重要。
+
+benchmark 是对任务分布的抽样。若所有任务高度相似，跨任务平均也可能夸大适用范围；排行榜反复使用同一测试反馈会逐渐变成选择数据。应报告任务边界、失败类型和计算成本，而不是只保留最终排名。负结果可以定位方法适用条件，但不能把未控制的失败直接解释成理论机制。
+
+## 6. 算法与实现要点
+
+读论文时先写一条可检验的主张，再把它对应到数据、比较对象、实验与指标。复现先跑最简单基线和小规模数值核验，再恢复关键设置；结果不同先检查单位、划分、损失归一化、版本和选择预算，避免立即把差异归因于硬件或随机种子。
+
+每次实验保存数据与划分标识、依赖锁、配置、随机源、完整预测和选择记录。重跑相同命令得到相同数字属于计算复现，换数据或设置仍支持主张属于更广的稳健证据。@fig-interactive 展示完全相同真实风险的候选在噪声验证下被选择时，报告值如何随搜索预算变得乐观；最终评估必须覆盖整个选择过程。
+
+```{python}
+#| label: fig-interactive
+#| fig-cap: "每种噪声水平下模拟 3000 次选择；所有候选真实风险均为 0.5，曲线仅反映选择偏好。"
+import plotly.graph_objects as go
+from semiai.plotting import plotly_html, plotly_layout
+
+slider_x=np.arange(1,101)
+local=np.random.default_rng(42)
+noise_matrix=local.normal(size=(3000,100))
+slider_ys=[.5+s*np.minimum.accumulate(noise_matrix,axis=1).mean(axis=0) for s in [.01,.03,.06]]
+values = [.01,.03,.06]
+fig = go.Figure()
+for i, value in enumerate(values):
+    fig.add_scatter(x=slider_x, y=slider_ys[i], mode="lines", name=f"验证噪声标准差 = {value}",
+                    line=dict(color=BLUE, width=2), visible=(i == 0))
+steps = [dict(method="update", label=str(value),
+              args=[{"visible": [j == i for j in range(len(values))]},
+                    {"title.text": f"验证噪声标准差 = {value}"}])
+         for i, value in enumerate(values)]
+fig.update_layout(**plotly_layout(
+    title=dict(text=f"验证噪声标准差 = {values[0]}", font=dict(size=14)),
+    xaxis=dict(title='搜索候选数'), yaxis=dict(title='被选验证风险的模拟平均'),
+    sliders=[dict(active=0, steps=steps, currentvalue=dict(prefix='验证噪声标准差 = '))],
+    showlegend=False, height=400,
+))
+plotly_html(fig)
+```
+
+## 7. 实例 Notebook
+
+打开 [M04.8 实例讲解](../notebooks/08-research-methodology.ipynb)。在 VS Code 中选择仓库 `.venv` 内核，按顺序运行；每节按“说明 → 代码 → 输出 → 读法”组织。所有数据均为合成体系，数值比较直接打印误差或指标，图与表来自实际计算。重新执行并保存输出：`make nb M=04`。
+
+| 节 | 内容 | 输出读法 |
+|---|---|---|
+| 1 | 1. 预先固定的基线与配对消融 | 交互项的真实作用由合成机制保证，消融保持相同训练数据、损失和 alpha；八次重复刻画训练数据变化，测试集固定，因此区间不覆盖新测试总体的全部不确定性 |
+| 2 | 2. 配对差值、置信区间与独立单位 | 正差表示完整模型更好；配对消除共享测试难度的部分波动 |
+| 3 | 3. 选择预算与赢家偏差 | 更大的选择预算降低了被报告的验证误差，即使没有候选真正更好 |
+| 4 | 4. 代理指标与物理目标的排序反转 | 常数能量偏移不改力，小幅高频能量误差可放大导数误差；清单记录实际数据与协议，但完整复现还需代码版本、依赖锁、配置和原始输出 |
+
+## 8. 领域连接
+
+MLIP 可按静态标签误差、导数一致性与对称性、短程稳定性、长程统计和最终科学目标逐层评价。各层针对不同风险，不能把一个指标等价替换另一层；例如常数能量偏移对力无影响，局部高频扰动却可改变轨迹。真实 Matbench 或公开轨迹比较可作为后续综合产出，本章合成例子只用于把证据逻辑讲清楚。
+
+## 9. 常见误区与失败模式
+
+- 只给新方法调参，再把默认基线的差距解释成算法创新。
+- 用最好种子代表方法，或把相关折与帧当独立重复夸大区间精度。
+- 消融同时改变容量、预算和选择流程，却只归因于一个组件。
+- 把低 RMSE 当作科学可用性的完整证明，未检查目标真正依赖的行为。
+
+## 10. 小结
+
+可靠研究比较的是定义清楚的方法与任务。基线确定参照，消融隔离机制，配对重复限定波动，分层指标连接最终目标，复现记录保留证据来源。每一步都应使主张更具体，而不是只使结果表更大。
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::

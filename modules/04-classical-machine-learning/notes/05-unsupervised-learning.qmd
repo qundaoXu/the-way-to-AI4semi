@@ -1,0 +1,167 @@
+---
+id: M04.5
+title: 无监督学习
+priority: P0
+tags: []
+prereqs:
+- M02.1
+- M02.3
+anchors: []
+subtitle: Unsupervised Learning
+module: M04
+build_status: Draft
+learn_status: Not Started
+evidence: []
+next_review: null
+last_reviewed: '2026-11-11'
+code-fold: true
+code-summary: 显示绘图代码
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import BLUE, GRAY, ORANGE, PURPLE, use_style
+
+use_style()
+rng = np.random.default_rng(42)
+```
+
+## 0. 定位
+
+无监督学习在没有目标标签的条件下寻找表示、分组或密度结构，但“没有标签”不等于“没有假设”。距离、尺度、簇形状和邻域定义都决定算法看见什么。本章把 K-means、GMM、层次聚类、DBSCAN 与降维放在各自目标函数下比较，建立从算法输出回到原始数据证据的解释路径。
+
+## 1. 学习目标
+
+- 实现 Lloyd K-means 和一维 GMM 的 EM 更新，检查目标与成熟框架对齐。
+- 根据球形、椭球、层次或密度连通的假设选择聚类方法。
+- 解释 PCA、t-SNE 与 UMAP 保留的关系及其不同目标。
+- 通过初始化、尺度和超参数敏感性限定簇和投影的科学含义。
+
+## 2. 前置知识
+
+[M02.1 线性代数](../../02-mathematics-statistics/notes/01-linear-algebra.qmd)、[M02.3 概率论与信息论](../../02-mathematics-statistics/notes/03-probability-information.qmd)
+
+PCA 推导归属 [M02.1](../../02-mathematics-statistics/notes/01-linear-algebra.qmd)，可视化的一般原则见 [M03.3](../../03-data-science/notes/03-eda-visualization.qmd)。本章从无监督目标出发解释算法，不把投影后看见的簇直接当作相结构。
+
+## 3. 推荐阅读
+
+1. James 等，2023，[ISLP](https://www.statlearning.com/)，Chapter 12 Unsupervised Learning，重点 PCA、K-means 与层次聚类；与 M02.1 的推导对照函数目标。
+2. scikit-learn [Clustering](https://scikit-learn.org/stable/modules/clustering.html) 的 K-means、层次聚类、DBSCAN 与评价部分；[Gaussian mixture models](https://scikit-learn.org/stable/modules/mixture.html) 的 EM 与协方差形式。
+3. scikit-learn [Manifold learning](https://scikit-learn.org/stable/modules/manifold.html) 的 t-SNE；UMAP 官方 [How UMAP Works](https://umap-learn.readthedocs.io/en/latest/how_umap_works.html)，重点近邻图、局部尺度与低维优化。notebook 实际运行 PCA、t-SNE，不额外安装 UMAP。
+
+## 4. 核心概念与直觉
+
+### 4.1 聚类方法在寻找不同的“近”
+
+K-means 最小化欧氏簇内平方和，形成按最近中心划分的 Voronoi 区域，适合相近尺度、相对紧致的簇。标准化会改变距离权重，因而也是模型选择。GMM 假设样本来自若干高斯分量，允许椭球形状和软责任度，但一个分量不必对应一个自然类别，也不保证能表达任意弯曲结构。
+
+层次聚类生成逐步合并的树，单链接容易链式连接，完全链接约束簇直径，Ward 合并最小化平方差增加。DBSCAN 将高密度区域通过邻域连通起来，把无法归属的点标成噪声；它不需预先指定簇数，却对邻域半径、最小点数和密度差异敏感。@fig-core 的双月说明几何假设可以比算法名字更决定结果。
+
+```{python}
+#| label: fig-core
+#| fig-cap: "400 个双月合成样本。K-means 使用两个中心，DBSCAN 半径 0.18、最小点数 6；颜色仅表示算法标签，灰色为噪声。"
+#| fig-alt: 'Kmeans按中心切分双月而DBSCAN沿弯曲密度连接'
+from sklearn.datasets import make_moons
+from sklearn.cluster import KMeans,DBSCAN
+X,truth=make_moons(n_samples=400,noise=.055,random_state=42)
+labels=[KMeans(n_clusters=2,n_init=10,random_state=42).fit_predict(X),DBSCAN(eps=.18,min_samples=6).fit_predict(X)]
+fig,axes=plt.subplots(1,2,figsize=(6.8,3),sharex=True,sharey=True)
+for ax,label,title in zip(axes,labels,["K-means","DBSCAN"],strict=True):
+    for k in np.unique(label):
+        mask=label==k;color=GRAY if k==-1 else [BLUE,ORANGE,PURPLE][k%3]
+        ax.scatter(X[mask,0],X[mask,1],s=11,color=color,alpha=.75)
+    ax.set(title=title,xlabel="特征 1")
+axes[0].set_ylabel("特征 2");fig.tight_layout();plt.show()
+```
+
+### 4.2 分组与表示不是同一个目标
+
+PCA 用低维线性子空间保存方差并最小化重构误差；t-SNE 与 UMAP 优先保留某种邻域关系，通常没有原空间重构目标。把降维坐标交给聚类算法会组合两层假设，投影产生的间隙可能被进一步放大。若目的是发现结构族，应回到原表示检查近邻、原始样本和已知领域变量，而不是只在二维图上圈颜色。
+
+::: {.column-margin}
+**簇标签可交换**：编号 0 和编号 1 没有天然顺序。比较两次聚类要用 ARI 或匹配中心，不能直接统计原始标签整数是否相等。
+:::
+
+## 5. 数学原理
+
+### 5.1 Lloyd 交替优化
+
+K-means 目标为
+
+$$
+J(\{c_i\},\{\boldsymbol\mu_k\})=\sum_i\lVert\mathbf x_i-\boldsymbol\mu_{c_i}\rVert^2.
+$$ {#eq-kmeans}
+
+固定中心时分配最近簇，固定分配时更新均值，两步都不会增加 @eq-kmeans。因此目标单调下降，但问题非凸，终点依赖初始化。K-means++ 以距离加权初始化改善起点，多次初始化仍然有用；空簇、重复点和不同收敛阈值需要实现约定。
+
+### 5.2 GMM 与 EM
+
+混合密度为 p(x)=∑π_k N(x|μ_k,Σ_k)。E 步计算每个样本属于各分量的后验责任度，M 步用责任度更新权重与矩。直接计算很小的密度会下溢，应在 log 域用 log-sum-exp。协方差可以 full、tied、diagonal 或 spherical，表达能力与参数量不同；极小样本分量可能使协方差趋零并导致似然奇异，需要正则和合理分量数。
+
+::: {.callout-note collapse="true" title="EM 为什么提高似然下界"}
+对隐变量 z 引入分布 q(z)，用 Jensen 不等式得到 log p(x)≥E_q[log p(x,z)]+H(q)。E 步取当前后验使界在当前参数处取等，M 步提高该下界，从而不降低原似然。它仍可能停在局部最优，且加入协方差正则后应按实际目标理解数值轨迹。
+:::
+
+### 5.3 t-SNE 与 UMAP 的邻域目标
+
+t-SNE 在高维构造对称邻域概率，用重尾 Student-t 低维相似性，并最小化 KL(P||Q)。perplexity 影响有效邻域尺度，非对称 KL 强调避免遗漏原本相近的点；重尾缓解拥挤，却不能把嵌入间距离当作原空间度量。优化的随机性与局部极值也会改变图形。
+
+UMAP 先构造具有局部自适应尺度的加权近邻图，再通过模糊集合交叉熵优化低维图。n_neighbors 调整局部与较广邻域的平衡，min_dist 影响低维紧致程度。二者都可能拉伸密度、改变簇间空隙；投影面积不能直接作为熵或相空间体积估计。需要密度保真时应使用相应方法并独立核验。
+
+## 6. 算法与实现要点
+
+先定义输入表示、尺度和希望保留的关系，再选择方法。聚类评价分为内部几何指标、对已知外部标签的一致性和跨重采样稳定性；三类证据都不能单独证明发现了真实物相。ARI 需要外部标签，轮廓系数偏好某些紧致几何，稳定性也可能稳定地反映批次效应。
+
+@fig-interactive 改变 DBSCAN 半径，在同一数据上观察连通结构；噪声标记不是错误标签，而是当前密度定义下未被归属。notebook 用固定初始化对齐 K-means、检查 EM 似然和框架均值，再通过 PCA 与 t-SNE 的不同诊断量避免把所有降维算法压成一个无意义的排名。
+
+```{python}
+#| label: fig-interactive
+#| fig-cap: "固定双月数据切换 DBSCAN 半径，观察小簇、连通与噪声标记的变化。"
+import plotly.graph_objects as go
+from semiai.plotting import plotly_html,plotly_layout
+radii=[.08,.15,.25,.4]
+fig=go.Figure()
+for i,eps in enumerate(radii):
+    label=DBSCAN(eps=eps,min_samples=6).fit_predict(X)
+    colors=[GRAY if k<0 else [BLUE,ORANGE,PURPLE][k%3] for k in label]
+    fig.add_scatter(x=X[:,0],y=X[:,1],mode="markers",marker=dict(color=colors,size=5),visible=i==0,name=str(eps))
+steps=[dict(method="update",label=str(v),args=[{"visible":[j==i for j in range(len(radii))]}]) for i,v in enumerate(radii)]
+fig.update_layout(**plotly_layout(xaxis=dict(title="特征 1"),yaxis=dict(title="特征 2"),sliders=[dict(steps=steps,currentvalue=dict(prefix="半径 = "))],showlegend=False,height=400))
+plotly_html(fig)
+```
+
+## 7. 实例 Notebook
+
+打开 [M04.5 实例讲解](../notebooks/05-unsupervised-learning.ipynb)。在 VS Code 中选择仓库 `.venv` 内核，按顺序运行；每节按“说明 → 代码 → 输出 → 读法”组织。所有数据均为合成体系，数值比较直接打印误差或指标，图与表来自实际计算。重新执行并保存输出：`make nb M=04`。
+
+| 节 | 内容 | 输出读法 |
+|---|---|---|
+| 1 | 1. 从零 Lloyd K-means 与框架对齐 | 交替更新到局部稳定点不等于全局最优；这里保证各簇非空，实际实现要规定空簇重置策略，并使用多次初始化 |
+| 2 | 2. 一维 GMM 的 EM 与对数稳定性 | GMM 给出软分配但仍依赖分量形状与数目；对角小正则防止协方差坍缩，混合标签本身可以交换 |
+| 3 | 3. 聚类几何与超参数敏感性 | Ward 偏好减小欧氏簇内平方差，DBSCAN 追踪密度连通；轮廓系数也有几何偏好，不能仅用最大轮廓分数判定科学上正确的簇 |
+| 4 | 4. PCA 与 t-SNE 的不同目标 | 不同 perplexity 定义不同高维邻域分布，不能仅以跨设置 KL 大小排最佳图；颜色只标记已知流形位置，坐标轴不具有物理单位 |
+
+## 8. 领域连接
+
+原子环境描述符的聚类可帮助检查训练覆盖和选择代表结构，但主导距离的变量可能是组分、密度或表示尺度。对候选簇应检查实际局域环境、原始统计和跨轨迹稳定性，再决定是否具有物理解释。二维图适合导航样本，不能代替原空间距离、动力学或自由能证据。
+
+## 9. 常见误区与失败模式
+
+- 把指定 K 后得到 K 个簇当作数据天然存在 K 个类别。
+- 把 GMM 责任度当作经过外部校准的真实物相概率。
+- 仅凭投影上的空白与岛状结构命名新相，忽略超参数与尺度敏感性。
+- 用整数标签直接比较聚类，或删除 DBSCAN 噪声后只报告剩余样本的漂亮指标。
+
+## 10. 小结
+
+无监督算法的输出应与其目标共同解释。K-means 强调中心平方距离，GMM 强调混合密度，层次法强调合并规则，DBSCAN 强调密度连通；PCA 与流形嵌入保留不同关系。稳定性、原空间核验和领域证据决定这些输出能够支持什么结论。
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::
