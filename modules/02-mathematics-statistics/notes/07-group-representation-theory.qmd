@@ -1,0 +1,208 @@
+---
+id: M02.7
+title: 群论与表示论
+priority: P1
+tags: []
+prereqs:
+- M02.1
+anchors:
+- A6
+subtitle: Group Theory and Representation Theory
+module: M02
+build_status: Draft
+learn_status: Not Started
+evidence: []
+next_review: null
+last_reviewed: '2026-11-11'
+code-fold: true
+code-summary: 显示绘图代码
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import BLUE, GRAY, use_style
+
+use_style()
+rng = np.random.default_rng(42)
+```
+
+## 0. 定位
+
+等变网络不是简单地“多做旋转增强”。它要求特征在输入变换后按照指定的线性规则变化，并让每层运算遵守这一规则。本章从群作用与表示建立这套约束语言，说明标量、向量、球谐块和张量积之间的关系。晶体对称性的物理背景不再复述，重点是这些对称操作如何进入模型的数学结构，为后续 M06.3 提供直接前置。
+
+## 1. 学习目标
+
+- 用闭合、单位元、逆与结合律识别群，区分子群、陪集和商群。
+- 区分置换群、SO(3)、O(3) 与 E(3)，写出输入和输出上的群作用。
+- 解释表示与不可约表示，使用球谐函数和 Wigner D 检查旋转变换。
+- 用两个向量的张量积分解说明 Clebsch–Gordan 耦合，并区分宇称与角动量阶数。
+
+## 2. 前置知识
+
+[M02.1 线性代数](01-linear-algebra.qmd)
+
+需要正交矩阵、内积、线性映射和基变换。全文使用主动旋转：列向量 $\mathbf r' =R\mathbf r$；代码的行存储对应 `r @ R.T`。所有球谐分量都采用同一套明示的实基与角度约定，避免把不同库的分量顺序直接拼接。
+
+## 3. 推荐阅读
+
+1. NIST Digital Library of Mathematical Functions，[§14.30 Spherical and Spheroidal Harmonics](https://dlmf.nist.gov/14.30)：定义、正交性与加法定理；[§34.3](https://dlmf.nist.gov/34.3)中的 3-j 符号及其对称性，用于理解角动量耦合的标准约定。
+2. SciPy 官方 [`sph_harm_y`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.sph_harm_y.html) 与 [`Rotation`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.transform.Rotation.html)。重点核对极角、方位角、Condon–Shortley 相位和旋转复合顺序。
+3. IUCr 在线晶体学词典的 [Point group](https://dictionary.iucr.org/Point_group) 与 [Space group](https://dictionary.iucr.org/Space_group)，以及其指向的 *International Tables for Crystallography A* 第 6 版 3.2.1 和 1.3 节。用来核对晶体点群与空间群的关系。
+
+## 4. 核心概念与直觉
+
+### 4.1 群描述可复合的操作
+
+一组操作若复合后仍在集合内，有单位操作、每个操作都有逆，并满足结合律，就构成群。结合律并不要求交换律：先绕 x 轴旋转再绕 y 轴，通常不同于相反顺序。置换群 $S_N$ 作用于粒子编号，SO(3) 是行列式为 1 的三维正交矩阵，O(3) 还包括反射。E(3) 把正交变换与平移组合起来，平移与旋转的复合通常不能交换。
+
+子群保留同一套运算规则；陪集把群按一个子群分块。只有正规子群的陪集乘法才能良定义为商群。空间群的平移子群是正规子群，除去平移后得到与晶体点群同构的商群。这是“整体旋转类型”和“带平移的空间操作”之间的精确联系。
+
+### 4.2 表示把群运算变成矩阵运算
+
+表示为每个群元素分配可逆矩阵 $D(g)$，并满足 $D(g_1g_2)=D(g_1)D(g_2)$。群作用在几何对象上，表示作用在特征空间上；同一个旋转可以在不同特征空间中对应不同大小的矩阵。标量使用平凡表示，三维极向量使用熟悉的旋转矩阵，高阶特征则可以有更多分量。
+
+改变特征基会把表示变成 $D'(g)=SD(g)S^{-1}$，数值矩阵改变，变换规律的本质不变。若存在对所有群元素都保持封闭的非平凡子空间，表示可以约化。不可约块提供最小的封闭特征单元，不能任意删掉一个分量后仍声称保持同样的旋转表示。
+
+### 4.3 单个分量变化，完整块按规则变化
+
+@fig-core 左侧展示一个 $l=2$ 实球谐分量在旋转后的变化；右侧完整块的平方范数保持不变。等变不要求每个分量不变，而要求它们依照表示矩阵混合。把球谐特征逐分量取任意非线性，通常会破坏这种混合关系；如何构造兼容操作是等变网络设计的核心。
+
+```{python}
+#| label: fig-core
+#| fig-cap: "旋转改变单个实球谐分量，但保持完整不可约块的范数。"
+#| fig-alt: '左图单个球谐分量发生变化，右图完整球谐块的平方范数重合。'
+from scipy.special import sph_harm_y
+from scipy.spatial.transform import Rotation
+
+def real_harmonics(ell,vectors):
+    unit=vectors/np.linalg.norm(vectors,axis=1,keepdims=True)
+    theta=np.arccos(np.clip(unit[:,2],-1,1))
+    phi=np.mod(np.arctan2(unit[:,1],unit[:,0]),2*np.pi)
+    result=[]
+    for m in range(-ell,ell+1):
+        y=sph_harm_y(ell,abs(m),theta,phi)
+        if m<0:
+            result.append(np.sqrt(2)*(-1.)**m*y.imag)
+        elif m>0:
+            result.append(np.sqrt(2)*(-1.)**m*y.real)
+        else:
+            result.append(y.real)
+    return np.column_stack(result)
+
+angles=np.linspace(0,2*np.pi,240)
+vectors=np.column_stack([np.sin(angles),np.zeros(len(angles)),np.cos(angles)])
+R=Rotation.from_euler("y",.7).as_matrix()
+Y=real_harmonics(2,vectors);Yr=real_harmonics(2,vectors@R.T)
+fig,axes=plt.subplots(1,2,figsize=(7.8,3.1))
+axes[0].plot(angles,Y[:,2],color=GRAY,label="旋转前")
+axes[0].plot(angles,Yr[:,2],color=BLUE,label="旋转后")
+axes[0].set(xlabel="xz 平面角度 / rad",ylabel="单个 l=2 分量");axes[0].legend()
+axes[1].plot(angles,np.sum(Y*Y,axis=1),color=GRAY,lw=3,label="旋转前")
+axes[1].plot(angles,np.sum(Yr*Yr,axis=1),color=BLUE,ls="--",label="旋转后")
+axes[1].set(xlabel="xz 平面角度 / rad",ylabel="完整 l=2 块的平方范数",ylim=(0,.45));axes[1].legend()
+fig.tight_layout();plt.show()
+```
+
+::: {.column-margin}
+**研究锚点 A6**：结构生成和电荷密度预测需要正确的几何变换规律。全局能量、逐原子力、偶极矩和标量密度场对应不同输出空间，不能仅凭“做了旋转数据增强”认定满足所需对称性。
+:::
+
+## 5. 数学原理
+
+### 5.1 不变性与等变性
+
+输入作用为 $\rho_{\rm in}(g)$，输出作用为 $\rho_{\rm out}(g)$，映射 $f$ 满足
+
+$$
+f(\rho_{\rm in}(g)\mathbf x)=\rho_{\rm out}(g)f(\mathbf x).
+$$ {#eq-equivariance}
+
+@eq-equivariance 中输出作用为恒等时就是不变性。对粒子置换，逐粒子输出必须同步重排；对旋转，向量输出必须旋转；对平移不变的能量，使用相对位矢能够去掉整体位置依赖，但还需要检查边界条件和盒子表示。
+
+### 5.2 球谐块与 Wigner D
+
+球谐函数 $Y_l^m(\theta,\phi)$ 在固定 $l$ 下有 $2l+1$ 个分量。复球谐转成规范化的实线性组合后，实旋转矩阵作用于整个块。本章约定
+
+$$
+\mathbf Y_l(R\hat{\mathbf r})=D_l(R)\mathbf Y_l(\hat{\mathbf r}),\qquad
+D_l(R_1R_2)=D_l(R_1)D_l(R_2).
+$$ {#eq-wigner}
+
+@eq-wigner 采用主动输入旋转，文献若把旋转定义在函数参数的逆变换上，会出现逆矩阵或转置，必须先对齐约定。SciPy 的 $\theta$ 是从 z 轴量起的极角，$\phi$ 是方位角；本章实基按 $m=-l,\ldots,l$ 排列。notebook 通过独立方向、正交性和群复合三种方式验证数值得到的 $D_l$。
+
+::: {.callout-note collapse="true" title="加法定理为什么给出旋转不变量"}
+规范化球谐满足 $\sum_m|Y_l^m(\hat{\mathbf r})|^2=(2l+1)/(4\pi)$。旋转在固定 $l$ 空间上由酉矩阵表示，实正交基中则为正交矩阵，因而保持块内内积和范数。这里的基变换必须完整、可逆且保持归一化；混用未规范化分量会使简单欧氏范数失去这一性质。不同方向的球谐内积还通过加法定理连接到 Legendre 多项式。
+:::
+
+### 5.3 张量积与宇称
+
+两个表示的张量积作用为 $D_{l_1}(R)\otimes D_{l_2}(R)$。Clebsch–Gordan 系数给出一个基变换，把它分解为 $l=|l_1-l_2|,\ldots,l_1+l_2$ 的不可约块。对两个向量，$3\times3=1+3+5$：外积矩阵的迹是标量，反对称部分对应轴向量，对称无迹部分是五维二阶块。
+
+SO(3) 不包含反射，因此极向量和轴向量都表现为 $l=1$。在 O(3) 下还需要宇称标签：位置差在反演下变号，两个极向量的叉积却不变；一般正交变换下叉积额外带 $\det R$。只用维数或 $l$ 标记特征，会遗漏反射约束。
+
+## 6. 算法与实现要点
+
+验证等变性时，用随机旋转、平移和合法置换作用到输入，随后比较输出按指定表示变换后的结果。应覆盖多个随机方向和多次复合，并检查标量绝对误差与向量相对误差。周期性体系还需要同时旋转晶胞，不能只转原子坐标。
+
+@fig-interactive 改变主动旋转角，显示同一个实球谐分量的角度剖面。曲线变化不意味着对称性失效，恰恰需要用完整块的变换关系解释。数值反求表示矩阵只用于理解结构；实际网络应采用一致、经过验证的基约定与耦合系数。
+
+```{python}
+#| label: fig-interactive
+#| fig-cap: "在同一球谐基约定下改变主动旋转角，观察单个分量的混合。"
+import plotly.graph_objects as go
+from semiai.plotting import plotly_html, plotly_layout
+
+slider_x=angles
+slider_ys=[real_harmonics(2,vectors@Rotation.from_euler("y",a).as_matrix().T)[:,2] for a in [0.,.3,.7,1.2]]
+values = [0.,.3,.7,1.2]
+fig = go.Figure()
+for i, value in enumerate(values):
+    fig.add_scatter(x=slider_x, y=slider_ys[i], mode="lines", name=f"绕 y 轴旋转 / rad = {value}",
+                    line=dict(color=BLUE, width=2), visible=(i == 0))
+steps = [dict(method="update", label=str(value),
+              args=[{"visible": [j == i for j in range(len(values))]},
+                    {"title.text": f"绕 y 轴旋转 / rad = {value}"}])
+         for i, value in enumerate(values)]
+fig.update_layout(**plotly_layout(
+    title=dict(text=f"绕 y 轴旋转 / rad = {values[0]}", font=dict(size=14)),
+    xaxis=dict(title='xz 平面角度 / rad'), yaxis=dict(title='实球谐 l=2, m=0 分量'),
+    sliders=[dict(active=0, steps=steps, currentvalue=dict(prefix='绕 y 轴旋转 / rad = '))],
+    showlegend=False, height=400,
+))
+plotly_html(fig)
+```
+
+## 7. 实例 Notebook
+
+打开 [M02.7 实例讲解](../notebooks/07-group-representation-theory.ipynb)。在 VS Code 中选择仓库 `.venv` 内核，按顺序运行；每节按“说明 → 代码 → 输出 → 读法”组织。所有数据均为合成体系，数值比较直接打印误差或指标，图与表来自实际计算。重新执行并保存输出：`make nb M=02`。
+
+| 节 | 内容 | 输出读法 |
+|---|---|---|
+| 1 | 1. 群运算、子群与陪集 | 群的闭合、单位元和逆可直接核对；陪集把群按子群划分 |
+| 2 | 2. 实球谐与数值 Wigner D | 在同一基约定下，整个 2l+1 维块随旋转混合，块范数不变 |
+| 3 | 3. 张量积的 1+3+5 分解 | Clebsch–Gordan 分解就是把张量积换到不可约块的基 |
+| 4 | 4. 能量不变与力等变 | 能量属于标量输出，力属于逐粒子的向量输出；置换同时重排输入粒子与输出力 |
+
+
+## 8. 领域连接
+
+本章是 M06.3 等变网络的数学前置：表示决定特征如何变换，张量积决定哪些组合被允许，输出类型决定最终需要不变还是等变。空间群与点群的关系还连接晶体结构输入，但晶体约束不能简单替代连续旋转的表示理论。
+
+## 9. 常见误区与失败模式
+
+主动与被动旋转、行向量与列向量、极角与方位角的混用，会产生貌似很小却系统性的误差。用求解表示矩阵的同一批方向验证它，容易掩盖约定错误；只测 SO(3) 也无法证明反射等变。应分别验证复合、独立方向和宇称。
+
+## 10. 小结
+
+群约束操作的复合，表示约束特征的变换，不可约块组织最小的封闭分量。球谐与 Wigner D 实现旋转结构，Clebsch–Gordan 分解组织张量积；O(3) 还需要宇称，E(3) 还包含平移。
+
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::

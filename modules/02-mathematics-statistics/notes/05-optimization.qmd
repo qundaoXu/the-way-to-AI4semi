@@ -1,0 +1,198 @@
+---
+id: M02.5
+title: 最优化
+priority: P0
+tags: []
+prereqs:
+- M02.1
+- M02.2
+anchors: []
+subtitle: Optimization
+module: M02
+build_status: Draft
+learn_status: Not Started
+evidence: []
+next_review: null
+last_reviewed: '2026-11-11'
+code-fold: true
+code-summary: 显示绘图代码
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import BLUE, GRAY, ORANGE, use_style
+
+use_style()
+rng = np.random.default_rng(42)
+```
+
+## 0. 定位
+
+结构弛豫和模型训练都在寻找较小的目标函数，但它们提供给优化器的信息不同：前者常有确定性梯度，后者常用小批次得到带噪声的梯度。优化器的选择应从目标的几何、梯度噪声和约束出发。本章用同一组可解析的二次函数理解步长、动量和自适应尺度，再连接 L-BFGS 与约束最优性条件。贝叶斯优化的代理模型与采集策略归属 M06.5。
+
+## 1. 学习目标
+
+- 识别凸集、凸函数与强凸性，区分局部驻点和全局最优的保证。
+- 从二次目标的误差递推推导梯度下降的稳定步长条件。
+- 解释 SGD、Momentum、Adam 与 AdamW 的状态、噪声行为和衰减方式。
+- 判断 L-BFGS 的适用场景，使用 KKT 条件检查简单约束问题。
+
+## 2. 前置知识
+
+[M02.1 线性代数](01-linear-algebra.qmd)、[M02.2 微积分与矩阵微积分](02-matrix-calculus.qmd)
+
+记 $J(\mathbf w)$ 为目标，$\eta$ 为步长，$H$ 为 Hessian。光滑性中的 $L$ 表示梯度的 Lipschitz 常数，不是损失函数本身；强凸常数记作 $\mu$。这些常数通常只能局部估计，不能不加条件地把凸二次函数的结论推广到整个神经网络训练过程。
+
+## 3. 推荐阅读
+
+1. Boyd、Vandenberghe，*Convex Optimization*，Cambridge University Press，2004：[作者官网](https://web.stanford.edu/~boyd/cvxbook/)，第 2–3 章（凸集与凸函数）、第 4–5 章（优化问题与对偶）、第 9 章（无约束最小化）。先学几何条件，再看算法保证。
+2. Deisenroth、Faisal、Ong，*Mathematics for Machine Learning*，2020，[作者官网](https://mml-book.github.io/)，第 7 章 Continuous Optimization；SciPy [`minimize`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html) 的 L-BFGS-B、梯度和终止条件。
+3. Kingma、Ba，*Adam: A Method for Stochastic Optimization*，ICLR 2015，[原文](https://arxiv.org/abs/1412.6980)；Loshchilov、Hutter，*Decoupled Weight Decay Regularization*，ICLR 2019，[原文](https://arxiv.org/abs/1711.05101)。重点比较更新式，而不是只记优化器名称。
+
+## 4. 核心概念与直觉
+
+### 4.1 凸性提供了什么保证
+
+凸集要求任意两点连线仍在集合中；凸函数要求连线上的函数值不超过端点值的线性插值。对可微凸函数，任何零梯度点都是全局最小点，但解未必唯一。强凸性给出严格的二次下界，从而排除平坦的解方向并支持更强的收敛结论。对称 Hessian 半正定是光滑函数在凸定义域上凸的判据，不能只在一个点检查后宣布整个函数凸。
+
+@fig-core 的椭圆等高线表示不同方向的曲率不同。GD 必须用能适应最陡方向的步长，因此在平缓方向走得很慢。预条件和二阶方法的目标之一，就是让各方向的尺度更均衡；这与单纯把学习率整体放大不同。
+
+```{python}
+#| label: fig-core
+#| fig-cap: "同一凸二次目标上 GD 与 Momentum 的路径及目标衰减，展示不同方向曲率对迭代的影响。"
+#| fig-alt: '左图椭圆等高线与两条优化路径，右图目标随迭代的对数曲线。'
+A=np.diag([1.,30.])
+def path(eta,beta=0.):
+    w=np.array([3.,1.]);v=np.zeros(2);history=[w.copy()]
+    for _ in range(50):
+        v=beta*v+A@w
+        w=w-eta*v
+        history.append(w.copy())
+    return np.array(history)
+fig,axes=plt.subplots(1,2,figsize=(7.8,3.2))
+xx,yy=np.meshgrid(np.linspace(-3.5,3.5,150),np.linspace(-1.5,1.5,150))
+axes[0].contour(xx,yy,(xx**2+30*yy**2)/2,levels=[.5,2,5,12,25],colors=GRAY,linewidths=.6)
+for eta,beta,name,color in [(.05,0.,"GD",BLUE),(.05,.8,"Momentum",ORANGE)]:
+    trajectory=path(eta,beta)
+    axes[0].plot(*trajectory.T,".-",ms=2,color=color,label=name)
+    values=np.einsum("ni,ij,nj->n",trajectory,A,trajectory)/2
+    axes[1].semilogy(values,color=color,label=name)
+axes[0].set(xlabel="平缓方向",ylabel="陡峭方向");axes[0].legend()
+axes[1].set(xlabel="迭代步",ylabel="目标函数");axes[1].legend()
+fig.tight_layout();plt.show()
+```
+
+### 4.2 随机梯度用噪声换计算量
+
+若数据损失是样本平均，从均匀抽取的小批次构造梯度，在适当条件下是全梯度的无偏估计。每步便宜，但更新路径会波动。固定步长通常在最优点附近形成噪声底；逐渐减小步长可以收紧分布，却也减慢适应。相关样本、非均匀采样和有偏批次会改变这一解释，不能把所有随机更新都叫作无偏 SGD。
+
+Momentum 累积过去的梯度，相当于给误差递推增加状态。它在方向持续一致时能加速，也会在曲率或梯度方向突变时产生过冲。不同库可能把 $(1-\beta)$ 放在不同位置，因此比较超参数之前先检查具体更新约定。
+
+### 4.3 自适应尺度不等于自动免调参
+
+Adam 对每个参数维护梯度的一阶、二阶矩指数平均，并用二阶矩的平方根缩放更新。早期矩估计从零出发，需要偏差修正。$\epsilon$ 影响很小梯度下的有效步长，不能总当作完全无关的除零保护。自适应方法仍依赖基础步长、调度、批次和参数化，不存在在所有目标上都占优的优化器。
+
+::: {.column-margin}
+**与结构优化的连接**：对几百到几千个确定性坐标自由度，准确的力和稳定的目标评估常使 L-BFGS 很有效；在带随机批次的训练损失上，曲率差分会被噪声污染，不能直接照搬同一套设置。
+:::
+
+## 5. 数学原理
+
+### 5.1 二次目标的谱分析
+
+对 $J=\frac12\mathbf w^\top H\mathbf w-\mathbf b^\top\mathbf w$，$H\succ0$，最优点满足 $H\mathbf w^*=\mathbf b$。GD 的误差为
+
+$$
+\mathbf e^{(t+1)}=(I-\eta H)\mathbf e^{(t)},\qquad
+0<\eta<\frac2{\lambda_{\max}(H)}.
+$$ {#eq-gd-stability}
+
+@eq-gd-stability 来自每个本征方向的收缩因子 $1-\eta\lambda_i$ 的绝对值都小于 1。条件数大时，稳定步长受到大特征值约束，而小特征值方向收缩很慢。一般 $L$-光滑凸目标常用 $\eta\le1/L$ 作为下降条件；不同定理的假设和步长界不能互换。
+
+::: {.callout-note collapse="true" title="推导：固定步长 SGD 的噪声底"}
+取一维目标 $J(w)=w^2/2$，梯度估计为 $w+\xi_t$，独立噪声均值为零、方差为 $\sigma_g^2$。更新 $w_{t+1}=(1-\eta)w_t-\eta\xi_t$。当 $0<\eta<2$，均值收缩；稳态方差满足 $V=(1-\eta)^2V+\eta^2\sigma_g^2$，所以 $V=\eta\sigma_g^2/(2-\eta)$。噪声下的固定步长收敛到一个分布，而不是精确停止的单个点。
+:::
+
+### 5.2 Adam 与解耦衰减
+
+Adam 维护 $m_t=\beta_1m_{t-1}+(1-\beta_1)g_t$、$v_t=\beta_2v_{t-1}+(1-\beta_2)g_t^2$，随后用 $\hat m_t=m_t/(1-\beta_1^t)$ 与 $\hat v_t=v_t/(1-\beta_2^t)$ 更新。
+
+$$
+\mathbf w_{t+1}=(1-\eta_t\lambda)\mathbf w_t-
+\eta_t\frac{\hat m_t}{\sqrt{\hat v_t}+\epsilon}.
+$$ {#eq-adamw}
+
+@eq-adamw 的衰减项不进入矩估计。相反，把 $\lambda\mathbf w$ 加入 Adam 梯度后，它也会被坐标相关的自适应分母缩放，因此通常不等价。即使两个实现都叫 `weight_decay`，也应检查是耦合正则还是解耦衰减，以及哪些参数被排除。
+
+### 5.3 拟牛顿与 KKT 条件
+
+Newton 法用 Hessian 求局部二次模型的步长，存储和求解可能很贵。L-BFGS 从近期参数差 $s_t$ 和梯度差 $y_t$ 建立有限记忆的逆 Hessian 作用，只保存若干向量对。线搜索检验目标与梯度的一致性，噪声目标、错误梯度或非光滑切换都可能破坏曲率估计。
+
+对不等式约束 $g_i(\mathbf w)\le0$ 与等式约束 $h_j(\mathbf w)=0$，Lagrangian 为 $\mathcal L=J+\sum_i\lambda_i g_i+\sum_j\nu_jh_j$。KKT 包括驻点、原始可行性、$\lambda_i\ge0$ 和 $\lambda_i g_i=0$。在满足约束资格条件的局部最优点，它们是必要条件；凸问题中配合相应条件可成为充分条件。
+
+## 6. 算法与实现要点
+
+诊断优化首先检查目标和梯度是否一致，再检查尺度、步长、梯度范数和终止原因。`success=True` 表示满足某个数值终止条件，不一定满足研究所需的精度；还应报告残差、约束违反量和目标值。多个优化器比较要固定初始化、数据预算与停止准则。
+
+@fig-interactive 改变一维二次函数上的步长，显示目标随迭代的演化。超过理论稳定界时，即使初期看似在靠近最优点，也可能因符号翻转而越来越远；调参应基于误差递推和实际日志，而不是只看最后一个 loss。
+
+```{python}
+#| label: fig-interactive
+#| fig-cap: "曲率为 30 的一维二次目标，稳定步长小于 2/30；大步长使目标发散。"
+import plotly.graph_objects as go
+from semiai.plotting import plotly_html, plotly_layout
+
+slider_x=np.arange(45)
+slider_ys=[15*(1-30*eta)**(2*slider_x) for eta in [.01,.04,.06,.08]]
+values = [.01,.04,.06,.08]
+fig = go.Figure()
+for i, value in enumerate(values):
+    fig.add_scatter(x=slider_x, y=slider_ys[i], mode="lines", name=f"步长 eta = {value}",
+                    line=dict(color=BLUE, width=2), visible=(i == 0))
+steps = [dict(method="update", label=str(value),
+              args=[{"visible": [j == i for j in range(len(values))]},
+                    {"title.text": f"步长 eta = {value}"}])
+         for i, value in enumerate(values)]
+fig.update_layout(**plotly_layout(
+    title=dict(text=f"步长 eta = {values[0]}", font=dict(size=14)),
+    xaxis=dict(title='迭代步'), yaxis=dict(title='二次目标值'),
+    sliders=[dict(active=0, steps=steps, currentvalue=dict(prefix='步长 eta = '))],
+    showlegend=False, height=400,
+))
+plotly_html(fig)
+```
+
+## 7. 实例 Notebook
+
+打开 [M02.5 实例讲解](../notebooks/05-optimization.ipynb)。在 VS Code 中选择仓库 `.venv` 内核，按顺序运行；每节按“说明 → 代码 → 输出 → 读法”组织。所有数据均为合成体系，数值比较直接打印误差或指标，图与表来自实际计算。重新执行并保存输出：`make nb M=02`。
+
+| 节 | 内容 | 输出读法 |
+|---|---|---|
+| 1 | 1. 曲率控制稳定步长 | GD 在陡峭方向来回振荡，步长由最大曲率限制；Momentum 改变误差递推，可加快某些方向，也可能引入振荡 |
+| 2 | 2. SGD 的噪声底 | 减小步长会降低稳态方差但延长收敛时间 |
+| 3 | 3. Adam、AdamW 与 L-BFGS | Adam 的自适应分母会同时缩放加入梯度的 L2 项，而 AdamW 单独按权重衰减；两者通常不同 |
+| 4 | 4. KKT 的四类条件 | 这个凸目标和凸约束下，满足 KKT 即可确认全局最优；非凸问题的 KKT 点一般还可能是鞍点或局部极值 |
+
+
+## 8. 领域连接
+
+从结构弛豫到势函数训练，核心差异在于目标能否精确重复评估、梯度是否带噪、以及约束如何施加。模型训练中的调度、归一化和梯度裁剪将由 M05.4 组织成完整流程，本章提供判断这些设置为何有效的数学基础。
+
+## 9. 常见误区与失败模式
+
+梯度范数小可能来自平坦区域或错误尺度，不一定代表预测误差小。只比较迭代次数会忽略每步计算成本；把 Adam 的 L2 项与 AdamW 衰减设成相同数字，也不意味着正则化强度相同。约束问题还必须检查可行性，不能只报告无约束梯度接近零。
+
+## 10. 小结
+
+凸性决定保证，曲率决定步长和病态程度，噪声决定随机更新的波动下限。Momentum 和 Adam 增加状态与尺度适应，L-BFGS 利用确定性曲率信息；KKT 把优化结果连接到约束几何。算法名称之外，更新式与假设才是判断依据。
+
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::

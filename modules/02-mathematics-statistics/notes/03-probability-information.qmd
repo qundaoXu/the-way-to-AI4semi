@@ -1,0 +1,196 @@
+---
+id: M02.3
+title: 概率论与信息论
+priority: P0
+tags: []
+prereqs:
+- M02.2
+anchors: []
+subtitle: Probability and Information Theory
+module: M02
+build_status: Draft
+learn_status: Not Started
+evidence: []
+next_review: null
+last_reviewed: '2026-11-11'
+code-fold: true
+code-summary: 显示绘图代码
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import BLUE, GRAY, use_style
+
+use_style()
+rng = np.random.default_rng(42)
+```
+
+## 0. 定位
+
+模型面对的对象通常不是一个确定值，而是一组可能结果及其概率。概率论为观测、噪声和先验建立一致的记账规则；信息论则把分布之间的差异转化为可优化的量。本章围绕“看见一部分信息后，剩余不确定性如何改变”组织条件概率、联合高斯和信息量，为统计推断、高斯过程以及生成模型准备数学工具。
+
+## 1. 学习目标
+
+- 区分随机变量、实现值、概率质量和概率密度，正确使用联合、边缘与条件分布。
+- 用贝叶斯公式更新概率，解释稀有事件中的基础发生率效应。
+- 推导分块高斯的边缘与条件分布，用 Jacobian 完成变量变换。
+- 区分熵、交叉熵、KL 散度与互信息，说明它们的方向性、单位和适用对象。
+
+## 2. 前置知识
+
+[M02.2 微积分与矩阵微积分](02-matrix-calculus.qmd)
+
+$X$ 表示随机变量，$x$ 是其实现值；上下文中的矩阵仍用大写斜体，需根据对象判断。连续变量的 $p(x)$ 是密度，不是单点概率；它可以大于 1，只有积分后才得到概率。全文默认自然对数，信息量单位为 nat；使用以 2 为底的对数时单位才是 bit。
+
+## 3. 推荐阅读
+
+1. Deisenroth、Faisal、Ong，*Mathematics for Machine Learning*，2020，[作者官网](https://mml-book.github.io/)，第 6 章 Probability and Distributions，重点联合概率、期望、Gaussian distribution、变换与信息论。与前两章的矩阵微积分结合阅读。
+2. SciPy 官方 [`scipy.stats`](https://docs.scipy.org/doc/scipy/reference/stats.html)：`norm`、`multivariate_normal`、`entropy` 的概率密度、对数密度和参数约定。理解公式后再查接口，避免把方差与标准差参数混用。
+
+## 4. 核心概念与直觉
+
+### 4.1 条件概率不是交换因果箭头
+
+给定事件 $B$，条件概率把样本空间限制在 $B$ 内并重新归一化。$p(A|B)$ 与 $p(B|A)$ 使用不同的分母，通常不相等。一个对缺陷很灵敏的检测器，若用于缺陷极少的批次，阳性中仍可能有很多误报。问题不在检测器突然变差，而在正常样本贡献的误报总数改变了。这是贝叶斯公式中的先验发生率发挥作用。
+
+随机变量是把样本结果映射成数值的函数，其分布描述这些数值的可能性。期望是对分布加权后的平均，不一定是一个可能出现的状态。方差描述围绕均值的波动；协方差描述两个中心化变量的线性共变。零协方差一般不代表独立，例如对称分布的 $X$ 与 $X^2$ 可以不相关却完全依赖。
+
+### 4.2 边缘化与条件化做相反的事情
+
+边缘化是不保留某个变量的信息，对其所有可能值积分或求和；条件化是固定一个已知事件或观测，用它更新其余变量。@fig-core 左侧的边缘分布较宽，给定相关观测后条件分布移动并变窄。不能把联合高斯的某一截面直接当作条件密度：截面还需要重新归一化。
+
+```{python}
+#| label: fig-core
+#| fig-cap: "相关高斯变量在给定观测后的条件分布，以及相关系数与高斯互信息的关系。"
+#| fig-alt: '左侧比较边缘和条件高斯密度，右侧互信息随相关系数上升。'
+from scipy.stats import norm
+x=np.linspace(-3.5,3.5,300)
+rho=.8; observed=.7
+conditional_mean=rho*observed
+conditional_std=np.sqrt(1-rho**2)
+fig,axes=plt.subplots(1,2,figsize=(7.8,3.1))
+axes[0].plot(x,norm.pdf(x),color=GRAY,label="边缘 p(y)")
+axes[0].plot(x,norm.pdf(x,conditional_mean,conditional_std),color=BLUE,label="条件 p(y|x=0.7)")
+axes[0].set(xlabel="y",ylabel="概率密度");axes[0].legend()
+rs=np.linspace(0,.97,100)
+axes[1].plot(rs,-.5*np.log1p(-rs**2),color=BLUE)
+axes[1].set(xlabel="高斯相关系数 rho",ylabel="互信息 / nat")
+fig.tight_layout();plt.show()
+```
+
+高斯分布的特殊之处，是线性变换、边缘化和条件化后仍保持高斯形式。这使均值和协方差就能描述更新过程。它并不意味着所有科学噪声都适合高斯：多峰、厚尾和边界约束都需要另外检查。
+
+::: {.column-margin}
+**与材料数据的连接**：如果某些描述符和目标近似联合高斯，观测描述符后对目标的预测可以直接由分块矩阵得到。高斯过程回归会把同一个条件化公式用于有限组函数值，主要内容归属 M04.3。
+:::
+
+### 4.3 信息量是对分布的比较
+
+罕见结果带来更大的负对数概率，熵是这种信息量的期望。交叉熵则在真实分布上平均模型给出的负对数概率，因此是很多似然损失的来源。KL 是额外编码代价，只在指定方向上比较两个分布。互信息把“联合分布是否等于独立时的边缘乘积”转化成 KL，不局限于直线相关。
+
+## 5. 数学原理
+
+### 5.1 从联合分布到贝叶斯公式
+
+$$
+p(a,b)=p(a|b)p(b)=p(b|a)p(a),\qquad
+p(a|b)=\frac{p(b|a)p(a)}{\int p(b|a')p(a')\,da'}.
+$$ {#eq-bayes}
+
+@eq-bayes 中的分母是证据或归一化常数。离散类别将积分换成求和。条件分布只有在条件事件有正概率、或用相应密度定义时才有意义。似然把数据固定、将参数视为可变；它不是参数的概率分布，只有与先验结合并归一化后才成为后验。
+
+### 5.2 分块高斯
+
+设 $(\mathbf x,\mathbf y)$ 联合高斯，均值分为 $\boldsymbol\mu_x,\boldsymbol\mu_y$，协方差分块为 $\Sigma_{xx},\Sigma_{xy},\Sigma_{yx},\Sigma_{yy}$。当 $\Sigma_{xx}$ 可逆时，
+
+$$
+\mathbf y|\mathbf x\sim\mathcal N\!\left(
+\boldsymbol\mu_y+\Sigma_{yx}\Sigma_{xx}^{-1}(\mathbf x-\boldsymbol\mu_x),
+\Sigma_{yy}-\Sigma_{yx}\Sigma_{xx}^{-1}\Sigma_{xy}\right).
+$$ {#eq-gaussian-conditional}
+
+::: {.callout-note collapse="true" title="推导：用不相关残差得到高斯条件分布"}
+定义 $\boldsymbol\epsilon=\mathbf y-\boldsymbol\mu_y-B(\mathbf x-\boldsymbol\mu_x)$，选择 $B=\Sigma_{yx}\Sigma_{xx}^{-1}$，则 $\operatorname{Cov}(\boldsymbol\epsilon,\mathbf x)=0$。线性变换后的联合分布仍为高斯，在联合高斯条件下，不相关等价于独立。因此固定 $\mathbf x$ 后，残差分布不变；将均值项加回得到 @eq-gaussian-conditional。展开残差协方差得到 Schur complement。一般非高斯分布不能用“不相关”替代“独立”，所以这套推导的关键是高斯假设。
+:::
+
+边缘分布 $p(\mathbf y)$ 只需要 $\boldsymbol\mu_y,\Sigma_{yy}$。条件协方差一般减小，但“观测使方差减小”在任意非高斯问题的任意观测值上并非普遍结论。
+
+### 5.3 密度变换与信息量
+
+若 $\mathbf y=g(\mathbf x)$ 为可微双射，则
+
+$$
+p_Y(\mathbf y)=p_X(g^{-1}(\mathbf y))\left|\det J_{g^{-1}}(\mathbf y)\right|.
+$$ {#eq-density-transform}
+
+@eq-density-transform 保持小体积中的概率质量，而不是保持密度高度。多对一映射要把所有逆像的贡献相加，不能直接套双射公式。对于 $Y=\exp X$，有 $p_Y(y)=p_X(\log y)/y$，定义域为 $y>0$；遗漏 $1/y$ 会破坏归一化。
+
+离散熵为 $H(p)=-\sum_i p_i\log p_i$，交叉熵为 $-\sum_i p_i\log q_i=H(p)+\mathrm{KL}(p\Vert q)$。当 $p_i>0$ 却 $q_i=0$ 时 KL 发散。连续分布的微分熵可以为负，且随坐标单位变化；KL 与可逆变换下的互信息则会消去共同 Jacobian 项。对于标准二元高斯，互信息为 $-\frac12\log(1-\rho^2)$，@fig-core 右侧显示接近完全相关时它迅速增大。
+
+## 6. 算法与实现要点
+
+概率乘积在长样本序列上容易下溢，因此优先累计对数密度，并使用稳定的 log-sum-exp 完成归一化。高斯条件公式中的“逆”应实现为线性求解，协方差要检查对称性与正定性。样本协方差出现很小的负特征值时，应区分舍入误差、样本量不足与真正的非正定构造。
+
+@fig-interactive 固定观测值，只改变相关系数，观察条件均值和宽度如何改变。这里的变化来自明确的联合分布参数；不能从一张相关散点图直接断言因果关系，也不能不检查模型就把条件概率当作干预效应。
+
+```{python}
+#| label: fig-interactive
+#| fig-cap: "已知 X=0.7 时，改变相关系数后 Y 的条件密度；边缘方差始终为 1。"
+import plotly.graph_objects as go
+from semiai.plotting import plotly_html, plotly_layout
+
+from scipy.stats import norm
+slider_x=np.linspace(-3.5,3.5,250)
+slider_ys=[norm.pdf(slider_x,r*.7,np.sqrt(1-r*r)) for r in [0.,.3,.6,.9,.98]]
+values = [0.,.3,.6,.9,.98]
+fig = go.Figure()
+for i, value in enumerate(values):
+    fig.add_scatter(x=slider_x, y=slider_ys[i], mode="lines", name=f"相关系数 rho = {value}",
+                    line=dict(color=BLUE, width=2), visible=(i == 0))
+steps = [dict(method="update", label=str(value),
+              args=[{"visible": [j == i for j in range(len(values))]},
+                    {"title.text": f"相关系数 rho = {value}"}])
+         for i, value in enumerate(values)]
+fig.update_layout(**plotly_layout(
+    title=dict(text=f"相关系数 rho = {values[0]}", font=dict(size=14)),
+    xaxis=dict(title='y'), yaxis=dict(title='条件概率密度'),
+    sliders=[dict(active=0, steps=steps, currentvalue=dict(prefix='相关系数 rho = '))],
+    showlegend=False, height=400,
+))
+plotly_html(fig)
+```
+
+## 7. 实例 Notebook
+
+打开 [M02.3 实例讲解](../notebooks/03-probability-information.ipynb)。在 VS Code 中选择仓库 `.venv` 内核，按顺序运行；每节按“说明 → 代码 → 输出 → 读法”组织。所有数据均为合成体系，数值比较直接打印误差或指标，图与表来自实际计算。重新执行并保存输出：`make nb M=02`。
+
+| 节 | 内容 | 输出读法 |
+|---|---|---|
+| 1 | 1. 贝叶斯反演与基础发生率 | 灵敏度是给定真实类别后的检测概率，阳性预测值是给定检测结果后的类别概率；二者不能交换，发生率进入分母的混合概率 |
+| 2 | 2. 联合高斯、边缘与条件 | 条件化同时改变均值和协方差；边缘化只是选取相应的均值与协方差子块 |
+| 3 | 3. 变量变换与 Jacobian | 密度必须对输出坐标积分为 1 |
+| 4 | 4. 熵、交叉熵、KL 与互信息 | KL 衡量方向明确的分布差异，不是距离；互信息是联合分布相对于边缘乘积的 KL，因此刻画的不只是线性相关 |
+
+
+## 8. 领域连接
+
+这些工具会进入噪声模型、结构生成和模型校准：概率密度用于描述可能的输出，变量变换用于生成模型的归一化，互信息用于比较观测携带的信息。贝叶斯更新的代数在本章建立，如何从有限样本估计参数和报告区间，属于紧接着的 M02.4。
+
+## 9. 常见误区与失败模式
+
+把密度值当作单点概率、混淆标准差和方差、交换条件概率，都会改变计算结果。用 Pearson 相关系数代替独立性判断，会漏掉非线性依赖。只对模型概率加一个很小常数掩盖 KL 发散，也可能隐藏支持集不匹配；数值处理应与模型假设同时说明。
+
+## 10. 小结
+
+联合分布是条件化和边缘化的共同起点。高斯分块公式把观测更新转化成线性代数，Jacobian 保持坐标变换下的概率质量。熵描述一个分布的不确定性，交叉熵和 KL 比较分布，互信息比较依赖与独立。
+
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::

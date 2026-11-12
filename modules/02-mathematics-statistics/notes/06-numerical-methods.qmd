@@ -1,0 +1,197 @@
+---
+id: M02.6
+title: 数值方法
+priority: P0
+tags: []
+prereqs:
+- M02.1
+- M02.2
+anchors:
+- A1
+- A4
+subtitle: Numerical Methods
+module: M02
+build_status: Draft
+learn_status: Not Started
+evidence: []
+next_review: null
+last_reviewed: '2026-11-11'
+code-fold: true
+code-summary: 显示绘图代码
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import AQUA, BLUE, ORANGE, use_style
+
+use_style()
+rng = np.random.default_rng(42)
+```
+
+## 0. 定位
+
+计算结果的误差可能来自数据和模型，也可能来自离散化、迭代未收敛或浮点舍入。数值方法的任务是把这些来源分开，利用矩阵结构和动力学结构减少成本，并让误差随计算预算可控。本章以线性系统、部分本征谱和时间演化为主线，再连接插值、积分与 PDE 离散。浮点表示已在 [M01.4](../../01-cs-foundations/notes/04-computer-systems.qmd) 讲解，这里关注算法如何处理误差。
+
+## 1. 学习目标
+
+- 区分条件数、前向误差、残差与后向误差，判断何时残差不足以代表解准确。
+- 根据结构选择 LU、Cholesky、CG 和稀疏存储，解释 Krylov 子空间方法的成本。
+- 从零实现小规模 CG 与 Lanczos，并与 SciPy 或解析谱对比。
+- 比较 Euler、RK4、Verlet 的误差与稳定性，使用解析解进行网格和时间步收敛分析。
+
+## 2. 前置知识
+
+[M02.1 线性代数](01-linear-algebra.qmd)、[M02.2 微积分与矩阵微积分](02-matrix-calculus.qmd)
+
+本章的 ODE 和 PDE 例子使用无量纲变量，以便隔离算法行为。实际应用必须先说明长度、时间、能量和矩阵元素的单位，不能把演示中的稳定步长直接移入另一个物理体系。
+
+## 3. 推荐阅读
+
+1. Trefethen、Bau，*Numerical Linear Algebra*，SIAM，1997：Lecture 15–16（条件与稳定性）、Lecture 23（Cholesky）、Lecture 33–38（Krylov、Arnoldi、Lanczos 与 CG）。用矩阵结构组织算法，而不是按接口名称记忆。[SIAM 图书页](https://epubs.siam.org/doi/book/10.1137/1.9780898719574)。
+2. SciPy [`cg`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.cg.html)、[`eigsh`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.eigsh.html) 的适用假设、退出状态和残差定义；[`integrate`](https://docs.scipy.org/doc/scipy/reference/integrate.html) 与 [`interpolate`](https://docs.scipy.org/doc/scipy/reference/interpolate.html) 用于对照具体数值问题。
+
+## 4. 核心概念与直觉
+
+### 4.1 好问题与好算法是两回事
+
+条件数描述问题对输入扰动有多敏感，稳定性描述算法是否引入了额外的不合理扰动。一个病态问题使用稳定算法，仍可能没有很多有效数字；一个良态问题使用不稳定实现，也可能给出坏结果。线性系统的残差 $\mathbf r=\mathbf b-A\hat{\mathbf x}$ 很小，只说明算出的向量几乎满足方程，并不自动保证它接近精确解。
+
+后向分析把数值解看成一个略微扰动输入的精确解；前向分析直接比较输出。实际计算中常用残差、条件数估计和问题尺度联合判断，尤其不能只看迭代器打印的“converged”。
+
+### 4.2 稀疏性与 Krylov 空间
+
+CSR 按行保存非零值、列下标和行指针，适合矩阵向量乘法；CSC 按列组织，常适合某些稀疏直接分解；COO 用坐标三元组方便组装。稀疏并不保证分解也稀疏，消元可能产生 fill-in，因此自由度增加时，存储瓶颈可能先于浮点运算出现。
+
+Krylov 空间由 $\mathbf b,A\mathbf b,A^2\mathbf b,\ldots$ 张成。CG 在 SPD 问题上选择共轭方向，Lanczos 对称地把矩阵压到小三对角形式。它们的共同优势是只需要矩阵向量乘法，矩阵甚至可以由 `LinearOperator` 表示。预条件并非改变真实方程的解，而是改善求解过程中看到的尺度与谱分布。
+
+### 4.3 高阶精度与长期结构不同
+
+@fig-core 对同一个谐振子比较能量误差。Euler 的局部截断阶低，并且对纯振荡方程缺乏所需稳定性；RK4 局部精度高；Verlet 通过漂移与踢动的对称组合保留辛结构。辛不等于精确能量守恒，而是通常能在适当假设和稳定步长下长期近似守恒一个修正 Hamiltonian。
+
+```{python}
+#| label: fig-core
+#| fig-cap: "同一谐振子上三种积分方法的相对能量误差，区分局部精度与长期结构。"
+#| fig-alt: 'Euler 误差持续增长，Verlet 误差有界振荡，RK4 在该时间范围内误差较小。'
+def oscillator(method,h=.15,steps=700):
+    q,p=1.,0.;energies=[.5]
+    for _ in range(steps):
+        if method=="Euler":
+            q,p=q+h*p,p-h*q
+        elif method=="Verlet":
+            p-=h*q/2;q+=h*p;p-=h*q/2
+        else:
+            y=np.array([q,p])
+            def rhs(z):
+                return np.array([z[1],-z[0]])
+            k1=rhs(y);k2=rhs(y+h*k1/2);k3=rhs(y+h*k2/2);k4=rhs(y+h*k3)
+            q,p=y+h*(k1+2*k2+2*k3+k4)/6
+        energies.append((q*q+p*p)/2)
+    return np.array(energies)
+fig,ax=plt.subplots(figsize=(7.2,3.0))
+for method,color in [("Euler",ORANGE),("Verlet",BLUE),("RK4",AQUA)]:
+    energy=oscillator(method)
+    ax.semilogy(np.arange(len(energy))*.15,np.abs(energy/.5-1)+1e-16,color=color,label=method)
+ax.set(xlabel="无量纲时间",ylabel="相对能量误差绝对值")
+ax.legend();fig.tight_layout();plt.show()
+```
+
+::: {.column-margin}
+**研究锚点 A1 与 A4**：能量模型的力再准确，也会被不合适的积分器或过大时间步破坏轨迹；大规模电子结构的矩阵再稀疏，也需要选择目标谱区和检查本征残差。误差分析连接模型与实际可用计算。
+:::
+
+## 5. 数学原理
+
+### 5.1 残差与误差的联系
+
+对于可逆 $A$，$\hat{\mathbf x}-\mathbf x=-A^{-1}\mathbf r$，从而
+
+$$
+\frac{\lVert\hat{\mathbf x}-\mathbf x\rVert}{\lVert\mathbf x\rVert}
+\le\kappa(A)\frac{\lVert\mathbf r\rVert}{\lVert\mathbf b\rVert}.
+$$ {#eq-residual-bound}
+
+@eq-residual-bound 解释了为什么同样的相对残差，在不同条件数下代表不同的可信程度。LU 通过带主元消元处理一般方阵；Cholesky 利用 SPD 结构减少工作量；CG 还可被看作在逐步扩大的 Krylov 空间中最小化二次目标。
+
+::: {.callout-note collapse="true" title="CG 的递推和 Lanczos 的投影"}
+CG 从残差 $r_0=b-Ax_0$ 和方向 $p_0=r_0$ 开始，使用 $\alpha_k=(r_k^\top r_k)/(p_k^\top Ap_k)$ 更新 $x_{k+1}=x_k+\alpha_kp_k$、$r_{k+1}=r_k-\alpha_kAp_k$，再取 $\beta_k=(r_{k+1}^\top r_{k+1})/(r_k^\top r_k)$ 和 $p_{k+1}=r_{k+1}+\beta_kp_k$。精确算术下方向关于 $A$ 共轭。Lanczos 则构造正交基 $Q_k$，得到 $T_k=Q_k^\top AQ_k$ 的三对角投影；其本征值是 Ritz 值。有限精度下会失去正交、出现重复 Ritz 值，重正交和重启策略由生产级实现处理。
+:::
+
+幂迭代反复执行 $q\leftarrow Aq/\lVert Aq\rVert$，在初始向量含目标分量、主模最大且存在谱隙时收敛到最大模特征方向。最大代数值、最大模和接近某个 shift 的谱区不同，调用 `eigsh` 前应先明确目标。
+
+### 5.2 时间积分的阶与稳定区间
+
+对 $\dot y=f(y)$，显式 Euler 的全局误差通常为 $O(h)$，经典 RK4 为 $O(h^4)$；这些结论要求足够光滑并固定终止时间。谐振子的 velocity Verlet 为
+
+$$
+p_{n+1/2}=p_n-\tfrac h2q_n,\quad
+q_{n+1}=q_n+hp_{n+1/2},\quad
+p_{n+1}=p_{n+1/2}-\tfrac h2q_{n+1}.
+$$ {#eq-verlet}
+
+@eq-verlet 的稳定性还取决于最快频率，本例要求 $h\omega<2$。接近稳定边界时虽未指数发散，轨迹相位和能量幅度也可能很差。时间可逆性、辛结构和精度阶是不同性质，应分别检查。
+
+### 5.3 插值、求积和空间离散
+
+插值在给定节点之间构造函数近似，外推超出了数据约束。高阶全局多项式可能振荡，局部分段方法或 PCHIP 可在适当情形保留形状。梯形、Simpson 和自适应求积对信息的要求不同：已有离散样本不能凭空调用未知位置的真函数。
+
+一维 Poisson 方程 $-u''=f$ 在均匀网格上使用 $(2u_i-u_{i-1}-u_{i+1})/h^2=f_i$，平滑解下截断误差为 $O(h^2)$。有限元则从弱形式出发，以基函数展开并对测试函数积分，得到刚度矩阵和边界条件。两者都把连续问题转化成代数系统；线性求解容差、离散误差与物理建模误差需要分层控制。
+
+## 6. 算法与实现要点
+
+先用有解析解或制造解的小问题确认符号、边界和阶数，再增加规模。矩阵求解报告相对残差，本征问题报告 $\lVert Av-\lambda v\rVert$，时间积分同时检查可观测量与守恒性质。网格变细而误差不降时，先排查边界、步长稳定性与迭代容差，而不是单纯换更高阶算法。
+
+@fig-interactive 改变 Verlet 时间步，显示同一无量纲谐振子的相对能量偏差。稳定不等于足够准确；应在感兴趣的观测量上进行时间步收敛，再确定生产参数。
+
+```{python}
+#| label: fig-interactive
+#| fig-cap: "Verlet 在不同稳定时间步下的能量偏差；时间步接近稳定边界时振幅误差明显增大。"
+import plotly.graph_objects as go
+from semiai.plotting import plotly_html,plotly_layout
+stepsizes=[.05,.2,.8,1.8]
+fig=go.Figure()
+for i,h in enumerate(stepsizes):
+    energy=oscillator("Verlet",h,180)
+    fig.add_scatter(x=np.arange(len(energy))*h,y=energy/.5-1,mode="lines",
+                    visible=i==0,line=dict(color=BLUE),name=str(h))
+steps=[dict(method="update",label=str(h),args=[{"visible":[j==i for j in range(4)]}])
+       for i,h in enumerate(stepsizes)]
+fig.update_layout(**plotly_layout(xaxis=dict(title="无量纲时间"),yaxis=dict(title="相对能量偏差"),
+    sliders=[dict(active=0,steps=steps,currentvalue=dict(prefix="时间步 h = "))],showlegend=False))
+plotly_html(fig)
+```
+
+## 7. 实例 Notebook
+
+打开 [M02.6 实例讲解](../notebooks/06-numerical-methods.ipynb)。在 VS Code 中选择仓库 `.venv` 内核，按顺序运行；每节按“说明 → 代码 → 输出 → 读法”组织。所有数据均为合成体系，数值比较直接打印误差或指标，图与表来自实际计算。重新执行并保存输出：`make nb M=02`。
+
+| 节 | 内容 | 输出读法 |
+|---|---|---|
+| 1 | 1. 稀疏表示、LU、Cholesky 与共轭梯度 | 稀疏乘法使用非零元素数而非矩阵面积决定存储与运算；CG 必须匹配 Hermitian 正定假设，并检查退出状态与残差 |
+| 2 | 2. 幂迭代与带重正交的 Lanczos | Lanczos 的小三对角矩阵给出 Ritz 值；有限精度下需防止基失去正交 |
+| 3 | 3. ODE 的稳定性与守恒结构 | 显式 Euler 对纯振荡问题会持续增能；稳定区间内 Verlet 的能量误差呈有界振荡 |
+| 4 | 4. 插值与数值积分 | 通过已知节点不等于节点间精确；自适应积分使用被积函数重新求值，和只拥有固定样本的积分问题具有不同信息 |
+| 5 | 5. PDE 离散与网格收敛 | 网格变细后误差接近二阶缩小，线性系统求解误差已经比离散误差更小 |
+
+
+## 8. 领域连接
+
+稀疏 Krylov 方法直接连接 A4 的大规模矩阵问题，辛积分与能量诊断连接 A1 的动力学可用性。实际体系还会增加非正交基、约束、截断和多时间尺度；本章的解析小例子提供排查数值层问题的参照系。
+
+## 9. 常见误区与失败模式
+
+小残差不能修复病态问题；把一般矩阵传给 CG 会失去保证；重复 Ritz 值可能来自正交性丢失。对时间积分只比较一步误差，可能漏掉长期漂移。把求解器容差收紧十倍，却不做网格收敛，只是在更精确地求解同一个离散近似。
+
+## 10. 小结
+
+数值可靠性来自问题结构、稳定实现和分层误差分析。稀疏存储节省表示成本，Krylov 方法利用矩阵作用，辛积分保留动力学结构；解析解、参考框架、残差与收敛阶共同构成验证证据。
+
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::

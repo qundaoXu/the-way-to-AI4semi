@@ -1,0 +1,195 @@
+---
+id: M02.1
+title: 线性代数
+priority: P0
+tags: []
+prereqs: []
+anchors:
+- A4
+subtitle: Linear Algebra
+module: M02
+build_status: Draft
+learn_status: Not Started
+evidence: []
+next_review: null
+last_reviewed: '2026-11-11'
+code-fold: true
+code-summary: 显示绘图代码
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import BLUE, GRAY, use_style
+
+use_style()
+rng = np.random.default_rng(42)
+```
+
+## 0. 定位
+
+同一个设计矩阵可以被理解成一组特征、一张线性映射，或一个待辨认的子空间。学习线性代数的收益在于能够在这三种视角之间切换：知道拟合究竟约束了哪些方向，数据压缩丢掉了什么，以及为什么很小的数值扰动会造成很大的参数变化。本章把正交投影、矩阵分解和 PCA 串成一条主线，为线性模型、优化和大规模特征值问题提供共同语言。
+
+## 1. 学习目标
+
+- 根据列空间与零空间解释线性方程的可解性，用正交性判断投影是否正确。
+- 区分特征分解与奇异值分解，推导截断 SVD 的重构误差。
+- 从最大投影方差和最小重构误差两种目标导出 PCA，并与成熟实现对齐。
+- 用范数和条件数解释扰动放大，判断 Cholesky 分解的适用条件。
+
+## 2. 前置知识
+
+本章从向量、矩阵和内积开始；只要求日常 NumPy 使用经验。
+
+符号遵循[数学符号约定](../../../docs/math-notation.md)。数据矩阵 $X\in\mathbb R^{n\times d}$ 每行一个样本；几何推导中单个向量仍按列向量书写。把样本按行存储只是代码布局，不改变向量空间的定义。
+
+## 3. 推荐阅读
+
+1. Deisenroth、Faisal、Ong，*Mathematics for Machine Learning*，Cambridge University Press，2020：[作者官网](https://mml-book.github.io/)，第 2 章 Linear Algebra、第 3 章 Analytic Geometry、第 4 章 Matrix Decompositions，以及第 10 章 PCA。先读投影和正交基，再读 SVD 与 PCA 的统一推导。
+2. NumPy 官方 [`numpy.linalg`](https://numpy.org/doc/stable/reference/routines.linalg.html) 的 `lstsq`、`svd`、`eigh`、`cholesky`、`cond` 条目。关注形状、秩截断和对称性假设；SciPy 的[线性代数文档](https://docs.scipy.org/doc/scipy/reference/linalg.html)用于查数值接口。
+
+## 4. 核心概念与直觉
+
+### 4.1 子空间决定“能表示什么”
+
+矩阵 $A$ 的每一列是一种允许的变化方向。$A\mathbf w$ 遍历列空间，落在其外的目标向量无法被精确表示。零空间中的参数变化满足 $A\Delta\mathbf w=0$，因此改变这些参数不会改变预测。这解释了一个重要现象：预测可以很稳定，参数却不能唯一辨认。秩是独立方向的数量，不是矩阵中非零元素的数量。
+
+正交基把几何关系变成内积。若 $Q^\top Q=I$，坐标 $Q^\top\mathbf y$ 表示目标在各基方向上的分量，再乘回 $Q$ 就得到最近的可表示向量。原问题类似把一个原子位移投影到选定振动模态：模态之外的分量成为残差，而不会靠修改模态系数消失。
+
+### 4.2 SVD 分开了方向与尺度
+
+一般矩阵可能不是方阵，也可能没有完整的实特征向量组，因此不能把特征分解当作通用工具。SVD 写成 $X=U\Sigma V^\top$：先在输入空间选方向，再沿每个奇异方向缩放，最后映射到输出空间。奇异值非负，按从大到小排序。实对称矩阵的特征分解则使用同一个正交基连接输入与输出；它的特征值可以为负。
+
+@fig-core 用一团相关的二维合成数据展示 rank 1 近似。投影保留变化最大的方向；被抹去的横向厚度就是重构误差。这里的“重要”由方差定义，并不保证是研究目标最关心的方向：低方差的局域结构变化也可能决定某种稀有事件。
+
+```{python}
+#| label: fig-core
+#| fig-cap: "中心化合成数据的 rank 1 投影，以及不同保留秩对应的重构误差。"
+#| fig-alt: '二维散点及其沿第一主方向的投影，旁边给出随秩下降的重构误差。'
+rng = np.random.default_rng(10)
+X = rng.normal(size=(240, 2)) @ np.array([[2.6, 1.0], [0.0, 0.4]])
+X -= X.mean(axis=0)
+U, s, Vt = np.linalg.svd(X, full_matrices=False)
+X1 = (U[:, :1] * s[:1]) @ Vt[:1]
+fig, axes = plt.subplots(1, 2, figsize=(7.8, 3.2))
+axes[0].scatter(*X.T, s=9, color=GRAY, label="原数据")
+axes[0].scatter(*X1.T, s=8, color=BLUE, label="rank 1 重构")
+axes[0].set(xlabel="feature 1", ylabel="feature 2", aspect="equal")
+axes[0].legend()
+errors = [np.linalg.norm(X - (U[:, :k] * s[:k]) @ Vt[:k])**2 for k in range(3)]
+axes[1].plot(range(3), errors, "o-", color=BLUE)
+axes[1].set(xlabel="保留秩 k", ylabel="重构误差平方和", xticks=range(3))
+fig.tight_layout()
+plt.show()
+```
+
+### 4.3 PCA 之前必须决定尺度
+
+PCA 对中心化数据寻找最大方差方向。若直接把长度、能量和无量纲描述符拼在一起，数值尺度会决定结果。按标准差缩放等价于改变距离度量，不是无害的预处理。是否标准化应由问题定义决定，并记录训练数据得到的均值和尺度；数据划分与泄漏在后续 M03.4 中系统讲解。
+
+::: {.column-margin}
+**与材料模拟的连接**：协方差矩阵的主方向与振动 Hessian 的本征模都使用正交分解，但矩阵、权重和目标不同，不能因为都画出“模态”就把两者当作同一物理量。
+:::
+
+## 5. 数学原理
+
+### 5.1 正交投影
+
+当 $A$ 列满秩时，投影矩阵为
+
+$$
+P=A(A^\top A)^{-1}A^\top=QQ^\top,\qquad
+\hat{\mathbf y}=P\mathbf y,\quad A^\top(\mathbf y-\hat{\mathbf y})=0.
+$$ {#eq-projection}
+
+@eq-projection 的逆矩阵形式用于推导；实际计算优先采用 QR、`lstsq` 或 SVD，避免把条件数平方。投影满足 $P=P^\top$、$P^2=P$。这两条性质比“画起来落在线上”更可靠，notebook 用它们验证计算。
+
+### 5.2 PCA 的两个目标
+
+令 $X_c$ 为中心化数据，$V_k^\top V_k=I$，则最大化投影方差和最小化重构误差等价：
+
+$$
+\max_{V_k^\top V_k=I}\operatorname{tr}(V_k^\top X_c^\top X_cV_k)
+\quad\Longleftrightarrow\quad
+\min_{V_k^\top V_k=I}\lVert X_c-X_cV_kV_k^\top\rVert_F^2.
+$$ {#eq-pca}
+
+::: {.callout-note collapse="true" title="推导：误差为什么等于丢弃的奇异值平方和"}
+正交投影的保留部分和残差正交，所以总能量 $\lVert X_c\rVert_F^2$ 等于保留能量与残差能量之和。代入 SVD，正交变换保持 Frobenius 范数，选择前 $k$ 个右奇异向量使保留能量 $\sum_{i=1}^k s_i^2$ 最大。因此 $X_k=U_k\Sigma_kV_k^\top$，且最小误差为 $\sum_{i>k}s_i^2$。主成分得分为 $X_cV_k=U_k\Sigma_k$；协方差特征值为 $s_i^2/(n-1)$。只有中心化后，这些量才对应围绕均值的方差。
+:::
+
+@eq-pca 的解允许每个基向量改变符号；重复奇异值还允许简并子空间内旋转。因此与其他实现比较时，应比较重构或投影矩阵，而不是逐元素要求两个基相等。
+
+### 5.3 范数、正定性与条件数
+
+谱范数 $\lVert A\rVert_2$ 是最大伸长倍数，Frobenius 范数是元素平方和的平方根。对可逆矩阵，$\kappa_2(A)=s_{\max}/s_{\min}$。小奇异值表示某个输入方向几乎被压扁，求逆时该方向的噪声会被放大。条件数描述问题本身的敏感性；稳定算法只能避免额外放大，无法修复不可辨认的数据。
+
+实对称正定矩阵满足对所有非零 $\mathbf x$ 都有 $\mathbf x^\top A\mathbf x>0$，等价于所有特征值为正，可写成 $A=LL^\top$。仅检查对角元素为正远远不够。半正定矩阵允许零特征值，普通 Cholesky 可能失败；不应无说明地加入对角扰动后声称原矩阵正定。
+
+## 6. 算法与实现要点
+
+中心化需要先沿样本轴取均值，随后调用 `svd(..., full_matrices=False)`，保留所需的列并将均值加回重构。`eigh` 适合实对称或复 Hermitian 问题；把非对称矩阵传入它可能得到没有所需意义的结果。估计数值秩时应使用与最大奇异值、矩阵尺寸和机器精度相关的阈值，而不是固定要求奇异值严格等于零。
+
+拖动 @fig-interactive 的保留维数，观察每个样本的残差范数怎样下降。这里没有改变数据或拟合目标，只改变保留的子空间维数；当残差消失时，说明保留了样本矩阵的全部数值方向，而不是证明不存在观测噪声。
+
+```{python}
+#| label: fig-interactive
+#| fig-cap: "同一数据矩阵在不同截断秩下的逐样本重构误差。"
+import plotly.graph_objects as go
+from semiai.plotting import plotly_html, plotly_layout
+
+slider_x = np.arange(80)
+Z = rng.normal(size=(80, 3)) @ np.diag([3., 1., .2])
+Z -= Z.mean(axis=0)
+Us, ss, Vs = np.linalg.svd(Z, full_matrices=False)
+slider_ys = [np.linalg.norm(Z-(Us[:,:k]*ss[:k])@Vs[:k], axis=1) for k in range(4)]
+values = [0,1,2,3]
+fig = go.Figure()
+for i, value in enumerate(values):
+    fig.add_scatter(x=slider_x, y=slider_ys[i], mode="lines", name=f"保留维数 k = {value}",
+                    line=dict(color=BLUE, width=2), visible=(i == 0))
+steps = [dict(method="update", label=str(value),
+              args=[{"visible": [j == i for j in range(len(values))]},
+                    {"title.text": f"保留维数 k = {value}"}])
+         for i, value in enumerate(values)]
+fig.update_layout(**plotly_layout(
+    title=dict(text=f"保留维数 k = {values[0]}", font=dict(size=14)),
+    xaxis=dict(title='样本编号'), yaxis=dict(title='残差范数'),
+    sliders=[dict(active=0, steps=steps, currentvalue=dict(prefix='保留维数 k = '))],
+    showlegend=False, height=400,
+))
+plotly_html(fig)
+```
+
+## 7. 实例 Notebook
+
+打开 [M02.1 实例讲解](../notebooks/01-linear-algebra.ipynb)。在 VS Code 中选择仓库 `.venv` 内核，按顺序运行；每节按“说明 → 代码 → 输出 → 读法”组织。所有数据均为合成体系，数值比较直接打印误差或指标，图与表来自实际计算。重新执行并保存输出：`make nb M=02`。
+
+| 节 | 内容 | 输出读法 |
+|---|---|---|
+| 1 | 1. 投影与残差正交 | 三种误差均应接近浮点舍入量级，说明两种计算路径给出同一个投影；数值上不必显式构造逆矩阵 |
+| 2 | 2. SVD 截断与 PCA 对齐 | 截断后的误差由丢弃的奇异值决定；PCA 和 SVD 的子空间一致 |
+| 3 | 3. 条件数与正定性 | 这是沿最敏感方向设计的扰动，所以误差放大接近条件数；任意扰动通常达不到这个最坏界 |
+
+
+## 8. 领域连接
+
+本章连接研究锚点 A4：低秩近似和稀疏本征问题都需要区分矩阵表示、物理有效子空间和数值秩。实际大规模算法在 M02.6 展开。[M04.2 线性模型](../../04-classical-machine-learning/notes/02-linear-models.qmd)将把这里的奇异方向用于解释正则化收缩。
+
+## 9. 常见误区与失败模式
+
+不中心化就把第一奇异向量叫作主成分，会把均值结构混入方差方向；逐列比较 PCA 向量，会把符号翻转误判为错误；显式构造逆矩阵会增加误差和计算量。另一个常见问题是只报告累计解释方差，却没有检查压缩是否保留了研究任务所需的信号。
+
+## 10. 小结
+
+列空间决定可表示的输出，零空间决定不可辨认的参数；SVD 统一了投影、低秩近似与 PCA。条件数说明数据对扰动的敏感性，正定性则决定二次型与分解能否使用。先确认这些结构，再选择数值算法。
+
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::
