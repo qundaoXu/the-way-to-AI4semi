@@ -1,0 +1,177 @@
+---
+id: M05.5
+title: 卷积网络与视觉
+priority: P1
+tags: []
+prereqs:
+- M05.4
+anchors: []
+subtitle: Convolutional Networks and Vision
+module: M05
+build_status: Draft
+learn_status: Not Started
+evidence: []
+next_review: null
+last_reviewed: '2026-11-11'
+code-fold: true
+code-summary: 显示绘图代码
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import use_style
+
+use_style()
+rng = np.random.default_rng(42)
+```
+
+## 0. 定位
+
+卷积网络把规则网格上的局部结构与参数共享写进模型，从而比逐像素全连接更有针对性。本章从卷积、感受野与残差通路解释这种归纳偏置，再用合成晶圆图展示训练、增强和特征复用。它连接晶圆图与显微图像的学习需求，但不会把合成形状识别成绩说成真实缺陷识别能力。
+
+## 1. 学习目标
+
+- 实现二维互相关并与 Conv2d 对齐，计算输出尺寸、参数量和感受野。
+- 解释局部连接、权重共享、平移等变与池化的作用和边界。
+- 用残差恒等通路分析梯度传播，而不把更深直接等同于更好。
+- 选择保持标签语义的数据增强，区分从头训练、冻结特征和微调。
+
+## 2. 前置知识
+
+[M05.4 训练与优化技巧](04-training-techniques.qmd)
+
+训练与精度策略见 [M05.4](04-training-techniques.qmd)，划分和增强副本泄漏见 [M03.4](../../03-data-science/notes/04-splitting-leakage-shift.qmd)。实例使用 `dl` extra、CPU 和独立生成的 24×24 图像，无外部权重或数据下载；真实公开数据的综合训练可在后续项目开展。
+
+## 3. 推荐阅读
+
+1. Goodfellow 等，2016，[Deep Learning, Chapter 9](https://www.deeplearningbook.org/contents/convnets.html)，重点 9.1 Convolution Operation、9.2 Motivation、9.3 Pooling 与结构化输出，关注局部连接、共享和等变性。
+2. He 等，2015 预印本、CVPR 2016，[Deep Residual Learning for Image Recognition](https://arxiv.org/abs/1512.03385)，重点 residual mapping 与 identity shortcut；把论文的优化证据与“任意深度一定更好”区分开。
+3. PyTorch [Conv2d](https://docs.pytorch.org/docs/stable/generated/torch.nn.Conv2d.html) 的形状、groups、stride、padding、dilation；[Transfer Learning for Computer Vision](https://docs.pytorch.org/tutorials/beginner/transfer_learning_tutorial.html) 的固定特征与微调两种设置。
+
+## 4. 核心概念与直觉
+
+### 4.1 局部连接与共享权重
+
+卷积在每个位置用相同小核检查邻域，参数量主要由核大小和通道数决定，而不是随图像所有像素对完全连接。它偏好局部重复结构，适合规则网格；不规则原子图不能简单当作同样的像素邻域。深度学习库通常计算互相关，即不翻转核，这与经典信号处理中的卷积定义要区分。
+
+理想无限网格上的单位步长卷积具有平移等变性：输入平移，输出相应平移。边界填充、下采样和裁剪会破坏或限制这个性质；分类所需平移不变性也不由卷积单独保证。池化降低分辨率并聚合局部响应，可能提高局部稳定性，但会丢失精细位置和引入混叠。
+
+### 4.2 图像表示决定任务信息
+
+晶圆图中的几何位置、掩模与缺陷状态具有不同含义，显微图的标尺、通道和强度处理也影响解释。把灰度复制成三个通道只是接口适配，不会自动让自然图像预训练特征符合材料纹理。@fig-core 用明确的合成标签隔离中心、环状和边缘形状，便于核验训练管线，不替代真实数据任务。
+
+```{python}
+#| label: fig-core
+#| fig-cap: "独立生成的 24×24 合成晶圆模式，灰度范围固定为 0–1，三类均采用 55 次缺陷位置抽样并含背景噪声。并非真实器件或显微观测。"
+#| fig-alt: '三幅合成晶圆中心环状边缘模式'
+def make_patterns(per_class,seed):
+    local=np.random.default_rng(seed);images=[];labels=[]
+    coordinate=np.linspace(-1,1,24);xx,yy=np.meshgrid(coordinate,coordinate)
+    radius=np.sqrt(xx*xx+yy*yy);wafer=radius<=1
+    for label in range(3):
+        for _ in range(per_class):
+            image=local.normal(0,.07,(24,24))
+            angle=local.uniform(0,2*np.pi,55)
+            r=np.clip(local.normal([.2,.6,.88][label],[.09,.035,.025][label],55),0,.97)
+            px=np.clip(np.rint((r*np.cos(angle)+1)*11.5).astype(int),0,23)
+            py=np.clip(np.rint((r*np.sin(angle)+1)*11.5).astype(int),0,23)
+            image[py,px]=1.;images.append((image*wafer).astype(np.float32));labels.append(label)
+    order=local.permutation(len(labels))
+    return np.array(images)[order,None,:,:],np.array(labels)[order]
+
+images,labels=make_patterns(3,42)
+fig,axes=plt.subplots(1,3,figsize=(7,2.5))
+for ax,label,title in zip(axes,range(3),["中心簇","环状","边缘环"],strict=True):
+    image=images[np.flatnonzero(labels==label)[0],0]
+    ax.imshow(image,cmap="gray",vmin=0,vmax=1,origin="lower")
+    ax.set(title=title);ax.set_axis_off()
+fig.tight_layout();plt.show()
+```
+
+::: {.column-margin}
+**增强先问标签**：旋转可保持某些径向缺陷类别，却可能改变有方向的工艺语义；对显微图裁剪也可能删去关键缺陷。增强应来自任务的不变性，而不是默认清单。
+:::
+
+## 5. 数学原理
+
+### 5.1 尺寸、通道与感受野
+
+一维空间尺寸的通用卷积公式为
+
+$$
+H_{\mathrm{out}}=\left\lfloor\frac{H_{\mathrm{in}}+2p-d(k-1)-1}{s}+1\right\rfloor,\qquad
+r_l=r_{l-1}+(k_l-1)d_lj_{l-1},\quad j_l=s_lj_{l-1}.
+$$ {#eq-convolution-size}
+
+@eq-convolution-size 中 p 是 padding、d 是 dilation、s 是 stride、r 是感受野大小、j 是相邻输出在原输入上的间隔；初值 r₀=j₀=1。二维分别对两轴计算，普通卷积参数量为 C_out C_in k_h k_w 加偏置，分组卷积再按 groups 分割输入通道。尺寸公式只描述拓扑，不表示所有区域都同等影响输出。
+
+::: {.callout-note collapse="true" title="两层感受野如何累计"}
+第一层核 3、步长 2，得到 r₁=3、j₁=2。第二层核 3、步长 1，则 r₂=3+2×2=7、j₂=2。notebook 对远离边界的单个输出反传，在全正权重与未被截断的激活下检查七乘七输入区域。若激活关闭或权重很小，有效梯度范围和强度会进一步变化。
+:::
+
+### 5.2 残差通路
+
+残差块写为 y=x+F(x)，其输入 Jacobian 为 I+J_F。恒等项提供直接梯度路径，使模型容易表达接近恒等的变换；通道或尺寸变化时需投影或下采样匹配。多块相乘仍可能病态，归一化、初始化与分支尺度都影响传播，因此残差结构不是任意深度的无条件稳定证明。
+
+### 5.3 迁移依赖源域与目标域
+
+冻结 backbone 只训练头部，降低计算和方差但限制表示适应；微调允许表示变化，通常需要较小或分层学习率，并防止小数据过拟合。冻结参数不必然冻结 BatchNorm 运行统计，必须明确模块模式。比较迁移效果要共享数据边界与训练预算，也要记录预训练来源、许可和是否包含目标测试信息。
+
+## 6. 算法与实现要点
+
+先检查 NCHW 形状、类别标签与掩模，核验一个卷积窗口和感受野，再训练小模型。增强仅用于训练集合，同一母图的多个裁剪与旋转应保持同组，不能跨评估边界。按批次、器件或原始图像划分，通常比随机图块更贴近真实迁移任务。
+
+@fig-interactive 改变一个小核，观察其对固定合成图的响应。它展示局部滤波作用，核并非通过训练得到。notebook 进一步训练 CNN、打印独立合成集混淆矩阵，再冻结实际学得特征并核验参数未改；这些机制核验与真实跨设备、跨工艺或跨显微镜评价分别报告。
+
+```{python}
+#| label: fig-interactive
+#| fig-cap: "对固定合成环状图使用三种预定义互相关核，颜色显示局部响应；不是训练后特征可视化。"
+from scipy.signal import correlate2d
+import plotly.graph_objects as go
+from semiai.plotting import plotly_html,plotly_layout
+image=images[np.flatnonzero(labels==1)[0],0]
+kernels={"均值":np.ones((3,3))/9,"横向差分":np.array([[-1,0,1],[-1,0,1],[-1,0,1]])/3,"Laplacian":np.array([[0,1,0],[1,-4,1],[0,1,0]])}
+fig=go.Figure()
+for i,(name,kernel) in enumerate(kernels.items()):
+    result=correlate2d(image,kernel,mode="same",boundary="fill")
+    fig.add_heatmap(z=result,colorscale="RdBu",zmid=0,visible=i==0,name=name,colorbar=dict(title="响应"))
+steps=[dict(method="update",label=name,args=[{"visible":[i==j for j in range(len(kernels))]}]) for i,name in enumerate(kernels)]
+fig.update_layout(**plotly_layout(xaxis=dict(title="像素列"),yaxis=dict(title="像素行",scaleanchor="x"),sliders=[dict(steps=steps)],height=440))
+plotly_html(fig)
+```
+
+## 7. 实例 Notebook
+
+打开 [M05.5 实例讲解](../notebooks/05-convolutional-networks.ipynb)。在 VS Code 中选择仓库 `.venv` 内核，按顺序运行；每节按“说明 → 代码 → 输出 → 读法”组织。所有数据均为合成体系，数值比较直接打印误差或指标，图与表来自实际计算。重新执行并保存输出：`make nb M=05`。
+
+| 节 | 内容 | 输出读法 |
+|---|---|---|
+| 1 | 1. 从零互相关与 Conv2d 对齐 | 深度学习的 Conv2d 实际使用互相关，核由训练学习；比较手写实现必须统一 padding、stride、dilation、通道和核布局 |
+| 2 | 2. 感受野与残差梯度通路 | 理论感受野是可能依赖的区域，实际有效梯度还受权重和激活影响；这里的恒等检查不等于证明任意深 ResNet 都不会梯度消失 |
+| 3 | 3. CPU 合成晶圆模式分类 | 训练和测试来自独立随机图，旋转在此标签定义下保持类别；指标只刻画这个合成生成器，不支持真实晶圆缺陷或跨设备泛化结论 |
+| 4 | 4. 冻结特征与线性探针 | 这是同一合成任务上的特征复用机制，未下载预训练权重，不构成真实跨域迁移实验 |
+
+## 8. 领域连接
+
+晶圆空间模式与显微纹理都可由局部多尺度特征建模，但像素位置、物理标尺和采集设备可能成为捷径。真实任务还需按来源留出、检查少数缺陷类别与空间定位，不只报告总体准确率。合成实例的角色是确认卷积、增强和训练链条；WM-811K 或公开显微数据的实验应另行记录来源、清洗和任务边界。
+
+## 9. 常见误区与失败模式
+
+- 把库的互相关与翻核卷积混比，或只凭输出尺寸判断实现一致。
+- 将感受野大小等同于均匀有效影响，忽略激活、权重与边界。
+- 随意旋转或裁剪改变标签，或让同一母图增强副本跨集合。
+- 冻结参数却让运行统计继续变化，未记录预训练来源和域差异。
+
+## 10. 小结
+
+CNN 的价值来自网格局部性、权重共享和多尺度组合。尺寸与感受野描述信息路径，残差通路改善优化结构，增强与迁移表达任务偏好。先用小实例核验机制，再在严格来源边界下评价真实图像，才能把形状识别分数连接到材料任务。
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::

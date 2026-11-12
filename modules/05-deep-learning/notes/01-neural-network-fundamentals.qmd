@@ -1,0 +1,179 @@
+---
+id: M05.1
+title: 神经网络基础
+priority: P0
+tags: []
+prereqs:
+- M02.2
+- M04.2
+anchors: []
+subtitle: Neural Network Fundamentals
+module: M05
+build_status: Draft
+learn_status: Not Started
+evidence: []
+next_review: null
+last_reviewed: '2026-11-11'
+code-fold: true
+code-summary: 显示绘图代码
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import BLUE, ORANGE, PURPLE, use_style
+
+use_style()
+rng = np.random.default_rng(42)
+```
+
+## 0. 定位
+
+多层感知机（Multilayer Perceptron, MLP）把固定特征映射变成可以与输出层一起学习的复合函数。本章沿“表示 → 损失 → 链式法则 → 信号传播”理解神经网络，解释激活、初始化和梯度问题。重点是网络为什么能表达非线性、又为什么可能难以训练，而不是罗列搭层接口。
+
+## 1. 学习目标
+
+- 写出带 batch 的 MLP 前向与反向传播，跟踪权重、偏置与激活的形状。
+- 根据输出分布选择回归或分类损失，理解 logits 与稳定计算。
+- 用 Jacobian 连乘解释梯度消失、爆炸与激活饱和。
+- 比较 Xavier、He 初始化的假设，并训练一个小网络与线性基线对照。
+
+## 2. 前置知识
+
+[M02.2 微积分与矩阵微积分](../../02-mathematics-statistics/notes/02-matrix-calculus.qmd)、[M04.2 线性模型](../../04-classical-machine-learning/notes/02-linear-models.qmd)
+
+矩阵链式法则见 [M02.2](../../02-mathematics-statistics/notes/02-matrix-calculus.qmd)，损失与似然见 [M04.2](../../04-classical-machine-learning/notes/02-linear-models.qmd)。本模块实例显式使用 CPU，先运行 `uv sync --extra perf --extra data --extra dl` 安装声明的依赖；不需下载外部数据或模型权重。
+
+## 3. 推荐阅读
+
+1. Goodfellow、Bengio 与 Courville，2016，[Deep Learning, Chapter 6](https://www.deeplearningbook.org/contents/mlp.html)，重点 6.2 Gradient-Based Learning、6.3 Hidden Units、6.5 Back-Propagation，先看函数复合与损失，再追梯度。
+2. Glorot 与 Bengio，2010，[Understanding the difficulty of training deep feedforward neural networks](https://proceedings.mlr.press/v9/glorot10a.html)，关注激活分布、饱和与初始化；He 等，2015，[Delving Deep into Rectifiers](https://arxiv.org/abs/1502.01852)，关注 ReLU 下的方差传播推导。
+3. PyTorch 官方 [Autograd mechanics](https://docs.pytorch.org/docs/stable/notes/autograd.html) 作为下一章预读；这里仅用框架梯度核验手算结果，计算图和高阶导数归属 M05.2。
+
+## 4. 核心概念与直觉
+
+### 4.1 从线性分类到可学习表示
+
+感知机用线性打分与阈值决定类别，单层线性边界无法处理所有非线性关系。MLP 在仿射变换之间插入非线性激活，让隐藏表示随任务一起变化。若所有层都是线性的，无论堆多少层，仍可合并成一个仿射映射；深度的作用依赖非线性、结构约束与优化路径。
+
+通用逼近能力说的是在适当条件下存在足够宽的网络，不保证有限样本能学到、不保证优化找到，也不保证范围外可靠。材料数据中的对称性、局域性和光滑性还要通过表示或架构约束表达，不能因为 MLP 能拟合曲线就忽略任务结构。
+
+### 4.2 激活同时决定函数与导数
+
+sigmoid 把输出压到零一之间，tanh 以零为中心但也会饱和；ReLU 在正侧保持导数、负侧为零。@fig-core 将值与导数并排，展示饱和区为何阻碍梯度传播。ReLU 的零点不可微，框架采用约定的次梯度；长期位于负侧的单元可能几乎不再更新。
+
+```{python}
+#| label: fig-core
+#| fig-cap: "三种激活与局部导数。ReLU 在零点不可微，图中导数用零的约定；横轴无量纲，展示饱和与导数传播机制。"
+#| fig-alt: 'sigmoid tanh ReLU的函数及导数对比'
+from scipy.special import expit
+x=np.linspace(-5,5,400)
+activations={"sigmoid":(expit(x),expit(x)*(1-expit(x))),"tanh":(np.tanh(x),1-np.tanh(x)**2),"ReLU":(np.maximum(x,0),(x>0).astype(float))}
+fig,axes=plt.subplots(1,2,figsize=(7,3))
+for (name,(value,derivative)),color in zip(activations.items(),[BLUE,ORANGE,PURPLE],strict=True):
+    axes[0].plot(x,value,color=color,label=name)
+    axes[1].plot(x,derivative,color=color)
+axes[0].set(xlabel="预激活值",ylabel="激活值");axes[1].set(xlabel="预激活值",ylabel="局部导数")
+axes[0].legend();fig.tight_layout();plt.show()
+```
+
+SiLU、GELU、Softplus 等平滑激活提供不同的形状与导数。对能量模型，输入导数就是力的一部分，激活的可微阶数影响可用的力和高阶响应；因此视觉分类中有效的分段线性选择，不能不检查导数便直接迁移到势能面建模。
+
+::: {.column-margin}
+**权重布局**：本章 NumPy 使用 XW，W 为 in×out；PyTorch Linear 存储 out×in，前向等价于 XWᵀ+b。对齐梯度前先统一约定，避免把转置错误误认为链式法则错误。
+:::
+
+## 5. 数学原理
+
+### 5.1 前向与反向传播
+
+对第 l 层，行样本约定为 $Z^{(l)}=H^{(l-1)}W^{(l)}+b^{(l)}$，$H^{(l)}=\phi(Z^{(l)})$。令 $\Delta^{(l)}=\partial L/\partial Z^{(l)}$，则
+
+$$
+\nabla_{\mathbf W^{(l)}}L=(\mathbf H^{(l-1)})^\top\mathbf\Delta^{(l)},\quad
+\nabla_{\mathbf b^{(l)}}L=\sum_i\mathbf\Delta^{(l)}_{i,:},\quad
+\mathbf\Delta^{(l-1)}=(\mathbf\Delta^{(l)}(\mathbf W^{(l)})^\top)\odot\phi'(\mathbf Z^{(l-1)}).
+$$ {#eq-mlp-backprop}
+
+@eq-mlp-backprop 中每个 Δ 的归一化必须与损失的 sum 或 mean 一致，偏置梯度沿 batch 求和。共享参数的不同路径贡献需要累加。反向传播是链式法则的高效组织方式，优化器才负责沿梯度更新，两者不是同一算法。
+
+::: {.callout-note collapse="true" title="从微分得到线性层梯度"}
+令 Z=HW+b，dZ=dH W+H dW+db。将 dL=tr(ΔᵀdZ) 展开并用迹的循环性质匹配各微分，可得 dW 的系数 HᵀΔ、dH 的系数 ΔWᵀ；偏置在每行共享，因此贡献求和。再逐元素乘激活导数，即得到前一层误差信号。
+:::
+
+隐藏单元还有置换对称性：同时交换某层单元及相邻层对应权重，不改变网络函数。因此参数空间存在多个等价表示，参数差距本身不能代表函数差距。若所有隐藏单元从完全相同权重开始，它们常获得相同梯度而无法分化；随机初始化除了控制方差，还用于打破这种对称。偏置常置零并不等于所有权重都应置零。
+
+### 5.2 损失对应观测模型
+
+固定同方差高斯噪声给出平方误差，Bernoulli 似然给出二分类交叉熵，Categorical 似然给出多类交叉熵。输出层和标签类型必须一致：多类交叉熵一般输入原始 logits，而不是先手工 softmax。稳定实现利用 log-sum-exp 或 softplus，避免大指数、log(0) 与饱和后有效精度丢失。
+
+### 5.3 初始化控制信号尺度
+
+反向梯度包含各层 Jacobian 连乘，小奇异值反复相乘导致消失，大值导致爆炸。独立、近似同分布与对称输入下，ReLU 使二阶矩约减半，因此 He 初始化取权重方差约 2/fan_in；Xavier 以 fan_in 与 fan_out 平衡前后传播。真实层间相关、有限宽度和训练更新会破坏这些近似，初始化只是良好起点，不是永久稳定保证。
+
+## 6. 算法与实现要点
+
+先检查张量形状、标签和损失归一化，再用小 batch 对照手算梯度；能降低一个小固定集合的损失后，再扩展数据与正则。不要用训练集准确率替代独立评价，也不要同时改学习率、激活和初始化后归因于其中一个因素。记录梯度范数、激活二阶矩和饱和比例，有助于区分信号传播问题与数据问题。
+
+@fig-interactive 改变 sigmoid 输入缩放，显示数值范围如何改变饱和与敏感区域。notebook 同时检查稳定损失、初始化传播和实际训练输出；自动微分机制、工程循环与训练技巧在后续三章分别展开。
+
+```{python}
+#| label: fig-interactive
+#| fig-cap: "改变输入缩放后的 sigmoid；更陡同时意味着更窄的非饱和区间。"
+import plotly.graph_objects as go
+from semiai.plotting import plotly_html, plotly_layout
+
+slider_x=x
+slider_ys=[expit(s*x) for s in [.2,1,3,8]]
+values = [.2,1,3,8]
+fig = go.Figure()
+for i, value in enumerate(values):
+    fig.add_scatter(x=slider_x, y=slider_ys[i], mode="lines", name=f"输入缩放 s = {value}",
+                    line=dict(color=BLUE, width=2), visible=(i == 0))
+steps = [dict(method="update", label=str(value),
+              args=[{"visible": [j == i for j in range(len(values))]},
+                    {"title.text": f"输入缩放 s = {value}"}])
+         for i, value in enumerate(values)]
+fig.update_layout(**plotly_layout(
+    title=dict(text=f"输入缩放 s = {values[0]}", font=dict(size=14)),
+    xaxis=dict(title='输入 x'), yaxis=dict(title='sigmoid(sx)'),
+    sliders=[dict(active=0, steps=steps, currentvalue=dict(prefix='输入缩放 s = '))],
+    showlegend=False, height=400,
+))
+plotly_html(fig)
+```
+
+## 7. 实例 Notebook
+
+打开 [M05.1 实例讲解](../notebooks/01-neural-network-fundamentals.ipynb)。在 VS Code 中选择仓库 `.venv` 内核，按顺序运行；每节按“说明 → 代码 → 输出 → 读法”组织。所有数据均为合成体系，数值比较直接打印误差或指标，图与表来自实际计算。重新执行并保存输出：`make nb M=05`。
+
+| 节 | 内容 | 输出读法 |
+|---|---|---|
+| 1 | 1. 两层 MLP 的手写反向传播 | 链式法则先从输出误差传播到隐藏层，再对 batch 求和；PyTorch Linear 的权重布局是 out×in，和这里 NumPy 的 in×out 约定不同 |
+| 2 | 2. 损失、似然与数值稳定性 | 固定同方差高斯下 MSE 与 NLL 的最优均值一致，但 sigma 决定概率尺度；分类直接使用 logits 可避免先 sigmoid 再 log 的溢出与精度损失 |
+| 3 | 3. 初始化如何影响信号传播 | He 初始化使用约 2/fan_in 的方差补偿 ReLU 截断；有限宽度、均值与相关性仍会引入波动，保持二阶矩也不等于所有 Jacobian 奇异值接近一 |
+| 4 | 4. 训练小 MLP 与固定线性基线 | 这个单种子合成实例展示非线性表达与优化过程，不能推断 MLP 在真实材料数据上普遍优于线性模型；训练模式、数据划分和恢复状态在后续章完善 |
+
+## 8. 领域连接
+
+MLP 可以视为学习描述符到能量的非线性映射，但物理对称性通常来自描述符或架构，不能由任意全连接层自动保证。联合能量与力训练还要对输入求导，再对参数求导，涉及高阶计算图。先掌握本章的形状、损失与手写梯度，能为下一章的能量—力一致性建立清晰参照。
+
+## 9. 常见误区与失败模式
+
+- 连续堆线性层却期待非线性表达，或把通用逼近当成泛化保证。
+- 对 CrossEntropyLoss 先做 softmax，重复变换并损失稳定性。
+- 将梯度消失完全归因于学习率，未检查激活饱和与权重尺度。
+- 对能量求导任务使用激活前，不检查力和高阶响应的光滑性。
+
+## 10. 小结
+
+神经网络学习的是非线性复合表示。损失定义观测假设，反向传播高效计算链式法则，初始化控制初始信号尺度。把形状与导数核验清楚，再追训练收敛，才能理解网络何时有效、何时只是数值上在运行。
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::

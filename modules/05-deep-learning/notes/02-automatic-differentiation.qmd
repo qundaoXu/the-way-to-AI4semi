@@ -1,0 +1,184 @@
+---
+id: M05.2
+title: 自动微分
+priority: P0
+tags: []
+prereqs:
+- M02.2
+- M05.1
+anchors:
+- A1
+subtitle: Automatic Differentiation
+module: M05
+build_status: Draft
+learn_status: Not Started
+evidence: []
+next_review: null
+last_reviewed: '2026-11-11'
+code-fold: true
+code-summary: 显示绘图代码
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import BLUE, GRAY, ORANGE, use_style
+
+use_style()
+rng = np.random.default_rng(42)
+```
+
+## 0. 定位
+
+自动微分（Automatic Differentiation, AD）对实际执行的基本运算应用链式法则，既不靠符号化简，也不靠给每个参数加小扰动。本章是自动微分的主要归属，从小标量引擎理解图与梯度累加，再比较 JVP、VJP 和高阶图，最后连接能量、力、应力与力训练。示例采用公开公式与合成构型，不涉及未发表体系。
+
+## 1. 学习目标
+
+- 实现可处理共享路径的标量反向引擎，并用它训练小 MLP。
+- 根据输入输出维度选择前向或反向模式，核验 JVP/VJP 的对偶关系。
+- 区分 create_graph、retain_graph、detach 与梯度累加的语义。
+- 用双精度核验 LJ 力和应变应力，检查净力与 NVE 步长收敛。
+
+## 2. 前置知识
+
+[M02.2 微积分与矩阵微积分](../../02-mathematics-statistics/notes/02-matrix-calculus.qmd)、[M05.1 神经网络基础](01-neural-network-fundamentals.qmd)
+
+有限差分误差与 Verlet 归属 [M02.6](../../02-mathematics-statistics/notes/06-numerical-methods.qmd)，这里将其用作独立数值参照。实例需 `uv sync --extra perf --extra data --extra dl`，均在 CPU 运行。力与应力的单位、符号和形变约定写在代码说明中，不由框架自动替使用者决定。
+
+## 3. 推荐阅读
+
+1. PyTorch [Autograd mechanics](https://docs.pytorch.org/docs/stable/notes/autograd.html)，重点图重建、saved tensors、grad modes 与 in-place；[torch.autograd.grad](https://docs.pytorch.org/docs/stable/generated/torch.autograd.grad.html) 的 grad_outputs、create_graph 和 retain_graph。
+2. PyTorch [torch.func](https://docs.pytorch.org/docs/stable/func.html) 的 jvp、vjp、jacrev；[Gradcheck mechanics](https://docs.pytorch.org/docs/stable/notes/gradcheck.html) 的有限差分比较前提。Karpathy 的 [micrograd](https://github.com/karpathy/micrograd) 可用于阅读完整小引擎结构，本章采用父边局部导数表自行实现。
+3. JAX 官方 [Automatic differentiation](https://docs.jax.dev/en/latest/automatic-differentiation.html)，只读 grad、value_and_grad 与函数变换的概念。JAX 是 P2 扩展，本章不安装或执行第二个后端。
+
+## 4. 核心概念与直觉
+
+### 4.1 图保存依赖，而不是公式字符串
+
+每个运算的输出节点记录父节点与局部导数，反向按拓扑逆序把上游敏感度传回。若变量被多个分支使用，梯度贡献需要相加；这与共享参数在多个原子环境中累计贡献的结构相似。动态图按本次实际执行重建，分支没有执行就不会产生对应路径，离散分支选择本身也不会自动获得有意义的连续导数。
+
+AD 的误差来自浮点与所定义的导数规则，不含有限差分步长截断误差，但它只能对代码中实现的函数求导。邻居列表的离散更新、硬截断和不可微激活需要单独设计；自动微分不能自动修复函数不连续或缺失的物理项。@fig-core 将解析 LJ 能量与径向力作为可核验参照。
+
+```{python}
+#| label: fig-core
+#| fig-cap: "无截断 LJ 二体能量与解析径向力，使用约化单位 ε=σ=1。力为 −dE/dr，正值表示排斥径向分量；这是解析函数图，不含统计误差。"
+#| fig-alt: 'LJ能量极小点对应径向力零点'
+r=np.linspace(.95,2.5,400)
+energy=4*(r**-12-r**-6)
+force=24*(2*r**-13-r**-7)
+fig,axes=plt.subplots(1,2,figsize=(7,3))
+axes[0].plot(r,energy,color=BLUE);axes[1].plot(r,force,color=ORANGE)
+axes[0].set(xlabel="距离 r / σ",ylabel="能量 / ε")
+axes[1].set(xlabel="距离 r / σ",ylabel="径向力 / (ε/σ)")
+for ax in axes:ax.axhline(0,color=GRAY,lw=.6)
+fig.tight_layout();plt.show()
+```
+
+### 4.2 前向与反向传播不同方向
+
+对 f:Rⁿ→Rᵐ，前向模式把输入方向 v 传播为 Jv，反向模式把输出权重 u 传播为 Jᵀu。标量损失对大量参数求梯度适合一次反向，少量输入方向对许多输出求导可能适合前向。完整 Jacobian 需要多方向，不能把一次 VJP 误认为已经得到每个输出对每个输入的全部偏导。
+
+::: {.column-margin}
+**grad_outputs 的含义**：它指定输出空间中的权重 u，计算加权输出和对输入的梯度。对每样本独立的能量求和再求坐标梯度可同时得到力；若模型存在跨样本耦合，需重新检查这个解释。
+:::
+
+## 5. 数学原理与约定
+
+### 5.1 力与应变导数
+
+取行坐标 R，在参考体积 V₀ 下用 R(ε)=R₀(I+ε)ᵀ 同步仿射变形，定义
+
+$$
+\mathbf F_i=-\frac{\partial E}{\partial\mathbf r_i},\qquad
+\sigma_{ab}=\left.\frac1{V_0}\frac{\partial E(\boldsymbol\epsilon)}{\partial\epsilon_{ab}}\right|_{\boldsymbol\epsilon=0}.
+$$ {#eq-energy-derivatives}
+
+@eq-energy-derivatives 的应力使用正能量应变导数约定，不含动能；压力常取负迹的三分之一。不同模拟软件符号与剪切 Voigt 因子可能不同，比较前要统一。固定分数坐标的晶胞变形必须同时移动位置，不能只改晶胞矩阵却冻结 Cartesian 坐标。
+
+::: {.callout-note collapse="true" title="力损失为什么需要混合二阶导数"}
+若 L_F=∑|−∂E_θ/∂R−F_ref|²，则 ∂L_F/∂θ 包含 ∂²E_θ/(∂θ∂R)。第一次求力时需要 create_graph=True，让导数运算仍然连接参数。retain_graph=True 仅避免释放原图，不等价于给导数建立新图；本章标量引擎只记录数值局部导数，因此没有这种高阶能力。
+:::
+
+### 5.2 数值核验需要独立路径
+
+双精度中心差分用于核验实际实现的能量导数，并扫描合理步长以避开截断与舍入主导区。相对误差以整体向量范数衡量，接近零的分量另用绝对容差；对平移不变体系还检查净力。力与应力都来自同一 AD 图时，相互一致不等于能量函数正确，因此同时保留解析公式、差分和对称性等不同证据。
+
+### 5.3 JAX 的函数变换视角
+
+JAX 通常将纯函数作为 grad、vmap 和 jit 的输入，参数与随机状态显式传递，跟踪和编译要求控制副作用。PyTorch eager 更直接地记录本次张量运算，torch.func 也提供函数变换接口。两者都依赖可微基本算子与明确的数据依赖；本章只建立概念对照，避免把换框架当作自动提高导数正确性的手段。
+
+## 6. 算法与实现要点
+
+训练循环默认清空参数梯度，输入求导时显式建立 requires_grad 叶节点。PyTorch backward 会累加叶梯度；autograd.grad 返回所请求输入的梯度而不按同样方式写入 .grad。将张量转成 NumPy、重新用 torch.tensor 包装或不恰当地 detach 都会切断路径，in-place 修改保存的中间值还可能触发版本检查。
+
+@fig-interactive 对一个固定 LJ 距离改变差分步长，观察数值导数收敛与舍入区域。notebook 从标量图、对偶关系到力应力、力损失和短 NVE 分层核验。NVE 每步重建并释放图，避免无意反传整条轨迹；真正要做可微动力学时，则需明确内存预算和长链梯度问题。
+
+```{python}
+#| label: fig-interactive
+#| fig-cap: "固定 r=1.3 的中心差分步长扫描；纵轴为误差的十进对数，切换单精度与双精度。"
+import plotly.graph_objects as go
+from semiai.plotting import plotly_html, plotly_layout
+
+slider_x=np.logspace(-12,-1,220)
+r0=1.3
+exact=24*(2*r0**-13-r0**-7)
+slider_ys=[]
+for dtype in [np.float32,np.float64]:
+    h=slider_x.astype(dtype);r=np.array(r0,dtype=dtype)
+    plus=4*((r+h)**-12-(r+h)**-6)
+    minus=4*((r-h)**-12-(r-h)**-6)
+    estimate=-(plus-minus)/(2*h)
+    slider_ys.append(np.log10(np.maximum(np.abs(estimate-exact),1e-16)))
+values = [32,64]
+fig = go.Figure()
+for i, value in enumerate(values):
+    fig.add_scatter(x=slider_x, y=slider_ys[i], mode="lines", name=f"浮点位数 = {value}",
+                    line=dict(color=BLUE, width=2), visible=(i == 0))
+steps = [dict(method="update", label=str(value),
+              args=[{"visible": [j == i for j in range(len(values))]},
+                    {"title.text": f"浮点位数 = {value}"}])
+         for i, value in enumerate(values)]
+fig.update_layout(**plotly_layout(
+    title=dict(text=f"浮点位数 = {values[0]}", font=dict(size=14)),
+    xaxis=dict(title='差分步长 h', type="log"), yaxis=dict(title='log10 绝对力误差'),
+    sliders=[dict(active=0, steps=steps, currentvalue=dict(prefix='浮点位数 = '))],
+    showlegend=False, height=400,
+))
+plotly_html(fig)
+```
+
+## 7. 实例 Notebook
+
+打开 [M05.2 实例讲解](../notebooks/02-automatic-differentiation.ipynb)。在 VS Code 中选择仓库 `.venv` 内核，按顺序运行；每节按“说明 → 代码 → 输出 → 读法”组织。所有数据均为合成体系，数值比较直接打印误差或指标，图与表来自实际计算。重新执行并保存输出：`make nb M=05`。
+
+| 节 | 内容 | 输出读法 |
+|---|---|---|
+| 1 | 1. 标量计算图、共享路径与小 MLP | 共享参数路径贡献必须累加而不是覆盖；该引擎每次 backward 清空可达节点梯度，与 PyTorch 默认累加语义不同 |
+| 2 | 2. JVP、VJP 与对偶一致性 | 前向模式沿输入方向传播 Jv，反向模式沿输出权重传播 Jᵀu；标量损失对许多参数求梯度适合反向模式，不必显式生成完整 Jacobian |
+| 3 | 3. LJ 能量、力与固定分数坐标应力 | 这里单位采用 ε=σ=m=1，固定分数坐标时位置随仿射应变移动；取应力为正的能量应变导数除以参考体积，不含动能，也没有周期边界、截断或近邻列表 |
+| 4 | 4. create_graph 与力损失的参数梯度 | retain_graph 保留已有图供重复反向，create_graph 才为导数运算构建可微图；detach、numpy 转换和错误的 no_grad 会切断参数梯度路径 |
+| 5 | 5. 用同一 autograd 力运行 NVE | 有限步长 Verlet 不精确守恒能量；缩步后偏差下降是积分一致性的证据 |
+
+## 8. 领域连接
+
+能量模型的力训练依赖参数与坐标混合导数，应力还依赖晶胞和位置的协同形变。先在无截断、无周期的小 LJ 系统核验约定，再加入边界、邻居与批处理，能缩小错误定位范围。短 NVE 的步长收敛验证积分与力接口的一致性，不替代长程相稳定、能量面覆盖和真实材料精度评价。
+
+## 9. 常见误区与失败模式
+
+- 以为 AD 自动保证物理正确，未检查离散操作、截断和平移对称。
+- 为重复反向设置 retain_graph，却忘记力损失所需的 create_graph。
+- 在应力比较中混淆符号、参考体积、固定坐标方式和剪切约定。
+- 不断保留轨迹图导致内存增长，或用过小单精度差分步长制造错误参照。
+
+## 10. 小结
+
+AD 是对计算依赖的链式法则组织。拓扑逆序与梯度累加解释反向引擎，JVP/VJP 解释传播方向，高阶图解释力训练。把能量、坐标、应变和单位约定写清，再用差分、对称性与积分收敛交叉核验，才能可靠地将自动微分接入科学模型。
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::

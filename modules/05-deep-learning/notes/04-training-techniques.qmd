@@ -1,0 +1,184 @@
+---
+id: M05.4
+title: 训练与优化技巧
+priority: P0
+tags: []
+prereqs:
+- M05.3
+- M02.5
+anchors: []
+subtitle: Training and Optimization Techniques
+module: M05
+build_status: Draft
+learn_status: Not Started
+evidence: []
+next_review: null
+last_reviewed: '2026-11-11'
+code-fold: true
+code-summary: 显示绘图代码
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import BLUE, ORANGE, use_style
+
+use_style()
+rng = np.random.default_rng(42)
+```
+
+## 0. 定位
+
+训练技巧只有对应具体失效机制时才有意义。学习率调度改变更新时间尺度，归一化改变表示与统计耦合，Dropout 和权重衰减改变偏好，混合精度改变数值范围。本章把这些方法放进同一个可诊断训练过程，强调先定位问题，再选择最小有效改动，避免同时堆叠技巧后无法解释结果。
+
+## 1. 学习目标
+
+- 按实际更新步定义 warmup 与调度，区分优化器超参数和训练预算。
+- 比较 BatchNorm、LayerNorm 的统计轴、状态与 batch 依赖。
+- 解释 Dropout、权重衰减、梯度裁剪和 EMA 各自改变什么。
+- 正确组织 autocast、梯度缩放、unscale 与裁剪，并按数据—前向—反向—更新顺序排查训练故障。
+
+## 2. 前置知识
+
+[M05.3 PyTorch 工程基础](03-pytorch-engineering.qmd)、[M02.5 最优化](../../02-mathematics-statistics/notes/05-optimization.qmd)
+
+Adam、AdamW 与动量的数学原理见 [M02.5](../../02-mathematics-statistics/notes/05-optimization.qmd)，状态恢复见 [M05.3](03-pytorch-engineering.qmd)，高阶导数与精度核验见 [M05.2](02-automatic-differentiation.qmd)。实例使用 `dl` extra 和 CPU，不以小例子推断 GPU 加速比例。
+
+## 3. 推荐阅读
+
+1. PyTorch [torch.optim](https://docs.pytorch.org/docs/stable/optim.html)，重点学习率调度与 optimizer.step 顺序，结合实际使用的 StepLR、LambdaLR 或 ReduceLROnPlateau 分别理解时间单位。
+2. PyTorch [BatchNorm1d](https://docs.pytorch.org/docs/stable/generated/torch.nn.BatchNorm1d.html) 的训练统计、running variance 与 momentum；配合 Module 的 train/eval 语义阅读，不将其 momentum 与优化器动量混用。
+3. PyTorch [Automatic Mixed Precision](https://docs.pytorch.org/docs/stable/amp.html) 和 [AMP examples](https://docs.pytorch.org/docs/stable/notes/amp_examples.html)，重点 autocast、scaling、gradient clipping 与 accumulation；实际硬件与 dtype 决定哪些算子能使用低精度。
+
+## 4. 核心概念与直觉
+
+### 4.1 优化路径有自己的时间尺度
+
+同一个学习率配不同 batch、数据量与更新次数，代表不同过程。调度按 epoch 还是 optimizer step 推进必须写清，梯度累积还改变一次更新对应的数据量。warmup 让初期步长逐渐增加，可能帮助适应尚不稳定的激活与矩估计；它不是所有模型必需，也不能修复错误标签或损失缩放。
+
+@fig-core 比较两个预先定义的调度形状。曲线本身不证明哪个训练更好，公平比较还要保持预算和其他设置，报告实际使用的学习率。早停属于训练侧选择，不能根据最终测试集挑最好轮数；恢复训练需要同时恢复调度器与优化器状态。
+
+```{python}
+#| label: fig-core
+#| fig-cap: "预定义 warmup–cosine 与阶梯调度，纵轴按峰值归一化；横轴是优化更新步，图只说明时间尺度，不提供性能结论。"
+#| fig-alt: 'warmup余弦与阶梯学习率随更新步的变化'
+steps=np.arange(201);warmup=20;total=200
+cosine=.5*(1+np.cos(np.pi*np.clip((steps-warmup)/(total-warmup),0,1)))
+schedule=np.where(steps<warmup,steps/warmup,cosine)
+fig,ax=plt.subplots(figsize=(6.8,3))
+ax.plot(steps,schedule,color=BLUE,label="warmup + cosine")
+ax.step(steps,np.where(steps<100,1.,.1),color=ORANGE,label="单次阶梯衰减",where="post")
+ax.set(xlabel="优化更新步",ylabel="学习率 / 峰值学习率",ylim=(0,1.08));ax.legend()
+fig.tight_layout();plt.show()
+```
+
+### 4.2 归一化改变统计耦合
+
+BatchNorm 对某些维度汇总 batch 统计，并维护推理期运行均值方差；LayerNorm 在每个样本的指定特征维度归一化，通常不需要运行统计。它们可以改善数值尺度与优化，但也改变函数依赖：BN 训练时一个样本的输出依赖同批其他样本，极小 batch 或工况混合会改变行为。
+
+对变长原子体系，哪些轴代表样本、原子、通道需要明确定义，不能仅为满足输入形状把所有原子混成独立样本。将不同轨迹或体系拼批后的统计耦合可能影响能量和力的解释；需要逐体系独立函数时，应核验所用归一化是否引入跨体系依赖。
+
+::: {.column-margin}
+**两个 momentum**：BatchNorm 的 momentum 是运行统计更新权重；优化器 momentum 是梯度历史累积系数。数值相同也不表示相同时间尺度或递推方向。
+:::
+
+## 5. 原理与设计取舍
+
+### 5.1 裁剪控制一次梯度大小
+
+全局范数裁剪写为
+
+$$
+\tilde{\mathbf g}=\mathbf g\min\left(1,\frac{c}{\lVert\mathbf g\rVert+\epsilon}\right),\qquad
+\bar{\boldsymbol\theta}_t=\beta\bar{\boldsymbol\theta}_{t-1}+(1-\beta)\boldsymbol\theta_t.
+$$ {#eq-clip-ema}
+
+@eq-clip-ema 左侧保留梯度方向并限制全局范数，右侧是参数 EMA。裁剪针对尖峰更新，不能恢复错误梯度或修复 NaN；自适应优化器还会通过矩估计改变最终参数步长，因此裁剪梯度范数不等于直接限制参数位移。EMA 平滑轨迹，可能有启动滞后，含状态层时还要说明 buffer 如何更新。
+
+::: {.callout-note collapse="true" title="inverted Dropout 保持的是什么"}
+训练时令 m~Bernoulli(q)，输出为 mh/q，则条件期望为 h。但后续非线性通常满足 E[f(mh/q)]≠f(h)，因此 eval 中关闭 Dropout 不是精确计算所有子网络的平均预测。它是训练与推理之间的一种约定，需要通过独立评价判断效果。
+:::
+
+### 5.2 正则化与优化不可混称
+
+权重衰减偏好较小参数，Dropout 在训练时引入随机屏蔽，数据增强编码输入变换偏好，早停改变优化终点。它们都可能改善某种泛化，但作用路径不同。AdamW 的解耦衰减与把 L2 项加进自适应梯度不等价，详见 M02.5；同样的 weight_decay 在不同训练步数和学习率调度下积累效果也不同。
+
+### 5.3 混合精度是有条件的数值策略
+
+autocast 按算子选择 dtype，部分矩阵乘用低精度、敏感归约保持更高精度。float16 的指数范围较窄，GradScaler 通过缩放损失减少小梯度下溢，反向后先 unscale 再检查与裁剪；发现非有限梯度时可跳过更新并调整尺度。bfloat16 指数范围更大，但有效尾数更少，通常有不同缩放需求。
+
+CPU bfloat16 示例只能证明当前环境的前向和梯度路径可运行，不能证明 CUDA float16 的稳定性或速度。力、应力和高阶响应对精度敏感，应先以双精度独立核验，再评估混合精度对科学目标的实际影响。吞吐提升与导数可靠性需要分别测量。
+
+## 6. 训练诊断顺序
+
+先检查一个 batch 的数据有限性、单位、形状与标签；再检查前向激活、损失尺度和输出头；然后看梯度是否存在、有限且非零；最后确认 optimizer 实际更新了被注册的参数。尝试拟合极小固定集合，可以分离工程错误与泛化问题。训练下降而验证恶化时再查容量、覆盖、正则与分布边界。
+
+遇到 NaN 定位第一个无效算子，必要时启用异常检测并缩小例子。事后用 where 或 nan_to_num 遮住输出，不保证反向路径安全。@fig-interactive 固定首个探针值，只改变同批其他观测，显示训练期 BN 的上下文依赖；选择归一化时需把这种函数变化也作为设计取舍。
+
+```{python}
+#| label: fig-interactive
+#| fig-cap: "一维训练期 BatchNorm 的确定性示意；首个值固定为 1，其余值在所选中心附近排列，未使用运行统计。"
+import plotly.graph_objects as go
+from semiai.plotting import plotly_html, plotly_layout
+
+slider_x=np.arange(2,65)
+slider_ys=[]
+for mu in [-3,0,3]:
+    ys=[]
+    for n in slider_x:
+        batch=np.r_[1.,mu+np.linspace(-.5,.5,n-1)]
+        ys.append((1-batch.mean())/np.sqrt(batch.var()+1e-5))
+    slider_ys.append(ys)
+values = [-3,0,3]
+fig = go.Figure()
+for i, value in enumerate(values):
+    fig.add_scatter(x=slider_x, y=slider_ys[i], mode="lines", name=f"其他样本中心 = {value}",
+                    line=dict(color=BLUE, width=2), visible=(i == 0))
+steps = [dict(method="update", label=str(value),
+              args=[{"visible": [j == i for j in range(len(values))]},
+                    {"title.text": f"其他样本中心 = {value}"}])
+         for i, value in enumerate(values)]
+fig.update_layout(**plotly_layout(
+    title=dict(text=f"其他样本中心 = {values[0]}", font=dict(size=14)),
+    xaxis=dict(title='batch 大小'), yaxis=dict(title='固定值 1 的训练期 BN 输出'),
+    sliders=[dict(active=0, steps=steps, currentvalue=dict(prefix='其他样本中心 = '))],
+    showlegend=False, height=400,
+))
+plotly_html(fig)
+```
+
+## 7. 实例 Notebook
+
+打开 [M05.4 实例讲解](../notebooks/04-training-techniques.ipynb)。在 VS Code 中选择仓库 `.venv` 内核，按顺序运行；每节按“说明 → 代码 → 输出 → 读法”组织。所有数据均为合成体系，数值比较直接打印误差或指标，图与表来自实际计算。重新执行并保存输出：`make nb M=05`。
+
+| 节 | 内容 | 输出读法 |
+|---|---|---|
+| 1 | 1. 学习率调度的时间单位 | 记录实际被 optimizer 使用的值，比只看调度公式更能检查首步和恢复偏移；调度器推进在更新之后，ReduceLROnPlateau 等按指标调度的接口另有约定 |
+| 2 | 2. BatchNorm 与 LayerNorm 的统计轴 | BN 对 batch 轴聚合，LN 对指定特征轴聚合；BN 训练归一化使用有偏方差，running variance 更新采用无偏估计约定 |
+| 3 | 3. Dropout 与参数 EMA | inverted Dropout 在训练时除以保留概率，保持激活期望而非整个非线性网络预测不变；EMA 平滑参数轨迹，但存在启动滞后，含 BN 时 buffer 还需单独处理 |
+| 4 | 4. CPU 混合精度与正确裁剪顺序 | bfloat16 与 float16 的指数范围不同；混合精度需按实际算子策略理解 |
+| 5 | 5. NaN 的局部定位与安全计算 | 前向结果有限不代表反向图每条路径有限；应定位第一个无效运算，而不是仅在最终 loss 上 nan_to_num |
+
+## 8. 领域连接
+
+科学网络的调试不应只追 loss：同时看能量和力的单位、损失权重、净力与导数有限性。若某技巧改善吞吐但改变高阶导数，必须按最终目标重新核验。体系级归一化、跨样本统计和随机屏蔽还可能影响模型在动力学中的确定性，训练与部署模式应作为模型定义保存。
+
+## 9. 常见误区与失败模式
+
+- 同时改初始化、调度、归一化和 batch，再把改善只归因于一个技巧。
+- 启用 AMP 后裁剪尚未 unscale 的梯度，或认为裁剪能修复 NaN。
+- 以为 BN 与 LN 只是不同 API，忽略统计轴和跨样本耦合。
+- 认为 EMA、warmup 或 Dropout 必然改善所有任务，不做同协议对照。
+
+## 10. 小结
+
+训练技巧应对应可观察的机制。先有可运行、可恢复的小循环，再控制学习率、统计尺度、随机正则和精度；通过梯度、激活和独立评价判断改动。诊断顺序越清楚，越不需要依赖同时堆叠许多设置来碰运气。
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::

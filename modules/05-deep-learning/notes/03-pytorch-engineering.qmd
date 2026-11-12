@@ -1,0 +1,190 @@
+---
+id: M05.3
+title: PyTorch 工程基础
+priority: P0
+tags:
+- FT
+prereqs:
+- M01.1
+- M05.1
+anchors: []
+subtitle: PyTorch Engineering Basics
+module: M05
+build_status: Draft
+learn_status: Not Started
+evidence: []
+next_review: null
+last_reviewed: '2026-11-11'
+code-fold: true
+code-summary: 显示绘图代码
+---
+
+```{python}
+#| label: setup
+#| include: false
+import matplotlib.pyplot as plt
+import numpy as np
+
+from semiai.plotting import BLUE, ORANGE, use_style
+
+use_style()
+rng = np.random.default_rng(42)
+```
+
+## 0. 定位
+
+PyTorch 工程基础的关键是管理状态：Tensor 的存储与设备、Module 的参数与 buffer、DataLoader 的顺序，以及优化器和随机源。本章用小型可恢复训练过程说明内部机制，避免训练“看似从 checkpoint 接着跑”，实际却换了一条更新轨迹。重点是数据和状态契约，不是从安装命令开始逐个讲 API。
+
+## 1. 学习目标
+
+- 区分张量值、存储、stride、视图与梯度历史，识别共享与复制边界。
+- 解释 Module 注册、Parameter、buffer、train/eval 与状态字典的职责。
+- 编写按样本加权的训练与评估循环，追踪 Dataset、batch ID 和随机顺序。
+- 保存并恢复完整 epoch 边界状态，在固定环境中核验后续参数和 batch 顺序一致。
+
+## 2. 前置知识
+
+[M01.1 Python 进阶](../../01-cs-foundations/notes/01-advanced-python.qmd)、[M05.1 神经网络基础](01-neural-network-fundamentals.qmd)
+
+计算图与梯度语义见 [M05.2](02-automatic-differentiation.qmd)。安装依赖使用 `uv sync --extra perf --extra data --extra dl`；示例显式 CPU、单线程和单进程数据加载，先隔离工程契约，再到 M11 讨论并行与 GPU 性能。
+
+## 3. 推荐阅读
+
+1. PyTorch [Tensor Views](https://docs.pytorch.org/docs/stable/tensor_view.html)，重点 view、reshape、contiguous 与别名；[Modules](https://docs.pytorch.org/docs/stable/notes/modules.html) 的注册、参数、buffer 和模式。
+2. PyTorch [torch.utils.data](https://docs.pytorch.org/docs/stable/data.html)，重点 map-style Dataset、Sampler、DataLoader 的 generator、worker 与可复现性；先理解数据顺序来自谁。
+3. PyTorch [Saving and Loading Models](https://docs.pytorch.org/tutorials/beginner/saving_loading_models.html) 的 general checkpoint、state_dict 与恢复；[Reproducibility](https://docs.pytorch.org/docs/stable/notes/randomness.html) 的随机源、确定性与跨环境限制。
+
+## 4. 核心概念与直觉
+
+### 4.1 Tensor 同时有逻辑形状与物理布局
+
+shape 描述维度，stride 描述索引走一步对应存储偏移。转置常只改元数据，结果可能非连续；view 要求兼容布局，reshape 在需要时可能复制。不能只凭运行成功就认为操作零拷贝。torch.tensor 通常复制输入，as_tensor 在满足条件时可共享 NumPy 存储；共享边界上的原地修改会影响另一方。
+
+detach 只切断历史，不保证复制，clone 复制存储但单独使用仍可保留梯度关系。科学接口应同时检查 dtype、device、形状与单位。将数组从 CPU 传到 GPU 或转换 dtype 可能发生复制和同步；non_blocking 也不自动让任意传输与计算完全重叠，性能解释需要实际测量。
+
+### 4.2 Module 是状态容器
+
+Parameter 是可训练张量，buffer 是随模块迁移和保存但通常不由优化器更新的状态，子 Module 通过注册加入参数遍历和模式切换。普通 list 不会提供 ModuleList 的注册行为。state_dict 包含参数与持久 buffer，但不是整个训练过程，更不包含任意 Python 字段和外部数据变换。
+
+@fig-core 展示随机初始化网络在 train 和 eval 下的不同输出。eval 切换 Dropout、BatchNorm 等模块行为，不等于禁止梯度；no_grad 或 inference_mode 控制记录开销，也不自动切换模块模式。这两条控制轴必须独立理解。
+
+```{python}
+#| label: fig-core
+#| fig-cap: "同一个未训练小网络、固定输入，train 模式重复 20 次 Dropout 前向为细线，eval 为固定映射。图展示模式差异，非预测区间或训练效果。"
+#| fig-alt: 'Dropout训练模式输出随机，评估模式固定'
+import torch
+from torch import nn
+torch.set_num_threads(1);torch.manual_seed(42)
+model=nn.Sequential(nn.Linear(1,16),nn.Tanh(),nn.Dropout(.5),nn.Linear(16,1))
+x=torch.linspace(-1,1,120)[:,None]
+model.train()
+with torch.no_grad():samples=torch.stack([model(x)[:,0] for _ in range(20)]).numpy()
+model.eval()
+with torch.no_grad():reference=model(x)[:,0].numpy()
+fig,ax=plt.subplots(figsize=(6.8,3))
+for y in samples:ax.plot(x[:,0].numpy(),y,color=BLUE,alpha=.1,lw=.6)
+ax.plot(x[:,0].numpy(),reference,color=ORANGE,lw=1.5,label="eval：固定映射")
+ax.set(xlabel="输入 x",ylabel="未训练网络输出");ax.legend();fig.tight_layout();plt.show()
+```
+
+::: {.column-margin}
+**归一化状态也是模型**：训练侧拟合的输入均值和尺度应随 checkpoint 或显式配置保存。只恢复线性层权重，却重新在测试数据上计算尺度，会同时破坏恢复语义与评估边界。
+:::
+
+数据加载也存在内存与进程边界。Dataset 定义如何从索引得到观测，Sampler 定义索引顺序，collate 将不同观测组合为 batch；变长结构通常需要拼接索引、mask 或分块，而不是强行堆成相同形状。多 worker 会各自持有进程状态，随机增强应显式处理各 worker 的随机源。扩大 worker 数之前，应确认读取成本、共享内存和启动开销确实是瓶颈。
+
+从 CPU 迁移到其他设备时，模型参数与输入必须位于兼容设备，优化器通常应在模型完成设备迁移后构造。buffer 会随 Module.to 迁移，普通未注册张量则不会。checkpoint 中的设备标记和当前机器可用设备也可能不同，所以加载使用明确的 map_location，再检查所有参数和数据的 device；设备兼容与逐位复现是两个需要分别核验的问题。
+
+## 5. 状态与恢复原理
+
+### 5.1 训练过程是状态转移
+
+把一轮训练写为
+
+$$
+S_{t+1}=T(S_t,B_t),\qquad
+S_t=(\theta_t,\mathcal O_t,\mathcal L_t,\mathcal R_t,\mathcal D_t).
+$$ {#eq-training-state}
+
+@eq-training-state 中 θ 是参数与模型状态，O 是优化器矩估计，L 是学习率调度，R 是随机源，D 是数据顺序或采样位置。只恢复 θ 通常无法得到相同 S_{t+1}。即使重新设同一个初始种子，也不等于恢复中途已经消耗后的随机状态。
+
+::: {.callout-note collapse="true" title="为什么 Adam 的状态不能省略"}
+Adam 更新依赖过去梯度的一阶、二阶矩与步数偏差修正。相同参数和当前 batch 若配上重置的矩估计，会产生不同步长。Dropout 还依赖当前随机状态，shuffle 依赖采样生成器；因此需要在完成对象构造后恢复相应状态，避免构造时的随机消耗再次推进恢复点。
+:::
+
+### 5.2 边界决定恢复复杂度
+
+epoch 边界通常最清楚：保存完成轮数、模型、优化器、调度器和随机源。中途 batch 恢复还需 sampler 游标、梯度累积状态和预取队列语义；多 worker 随机增强、分布式 rank 与 GPU RNG 进一步增加状态。应先声明支持的恢复边界，而不是笼统宣称“可复现”。
+
+确定性算法和固定种子在同一环境中有帮助，但 PyTorch 不保证跨版本、平台和所有设备逐位一致。恢复检查应在具体环境比较后续 batch、损失与参数，并为数值容差说明依据。本章 CPU 的完全一致是局部实测结果，不是跨硬件承诺。
+
+## 6. 算法与实现要点
+
+训练阶段先 train、清梯度、前向、计算损失、反向、更新，再按约定推进调度器。日志用实际样本数加权：最后一个 batch 较小时，直接平均各 batch 的 mean loss 会改变样本权重。评估阶段 eval、禁用记录、汇总预测，独立保存标签与 ID 以便审计。
+
+@fig-interactive 用同一个二次目标展示中途忘记动量状态时的轨迹差异。正式 checkpoint 使用 state_dict 和简单数据结构，加载时明确 map_location 与 weights_only；不把任意对象反序列化当作必要步骤。notebook 在临时目录保存文件，核验连续与恢复训练后清理产物，仓库仅保留代码与输出。
+
+```{python}
+#| label: fig-interactive
+#| fig-cap: "第 30 步仅将一条轨迹动量清零，其余设置相同；纵轴显示两条后续参数轨迹差。"
+import plotly.graph_objects as go
+from semiai.plotting import plotly_html, plotly_layout
+
+slider_x=np.arange(100)
+slider_ys=[]
+for beta in [0,.5,.9,.99]:
+    p=2.;q=2.;v=0.;w=0.;differences=[]
+    for step in range(100):
+        if step==30:w=0.
+        v=beta*v+p;w=beta*w+q
+        p-=.05*v;q-=.05*w;differences.append(abs(p-q))
+    slider_ys.append(differences)
+values = [0,.5,.9,.99]
+fig = go.Figure()
+for i, value in enumerate(values):
+    fig.add_scatter(x=slider_x, y=slider_ys[i], mode="lines", name=f"动量 = {value}",
+                    line=dict(color=BLUE, width=2), visible=(i == 0))
+steps = [dict(method="update", label=str(value),
+              args=[{"visible": [j == i for j in range(len(values))]},
+                    {"title.text": f"动量 = {value}"}])
+         for i, value in enumerate(values)]
+fig.update_layout(**plotly_layout(
+    title=dict(text=f"动量 = {values[0]}", font=dict(size=14)),
+    xaxis=dict(title='更新步'), yaxis=dict(title='重置状态与连续更新的参数差'),
+    sliders=[dict(active=0, steps=steps, currentvalue=dict(prefix='动量 = '))],
+    showlegend=False, height=400,
+))
+plotly_html(fig)
+```
+
+## 7. 实例 Notebook
+
+打开 [M05.3 实例讲解](../notebooks/03-pytorch-engineering.ipynb)。在 VS Code 中选择仓库 `.venv` 内核，按顺序运行；每节按“说明 → 代码 → 输出 → 读法”组织。所有数据均为合成体系，数值比较直接打印误差或指标，图与表来自实际计算。重新执行并保存输出：`make nb M=05`。
+
+| 节 | 内容 | 输出读法 |
+|---|---|---|
+| 1 | 1. Tensor 的存储、视图与边界 | detach 切断梯度但不复制存储，reshape 可能复制；不能仅根据形状推断别名关系 |
+| 2 | 2. 参数、buffer 与 Dataset 契约 | 最后一个 batch 只有三行，epoch 平均损失应按样本数加权；普通 Python list 中的子层不会像 ModuleList 那样自动注册 |
+| 3 | 3. 可恢复的手写训练循环 | 核验范围是同一 CPU、版本、单进程 DataLoader、epoch 边界恢复；中途 batch、worker 预取、CUDA 和分布式状态需要另外的恢复协议 |
+| 4 | 4. 评估模式与输出审计 | eval 改模块行为，no_grad/inference_mode 控制图记录，两者分工不同 |
+
+## 8. 领域连接
+
+科学训练状态还可能包含物种映射、能量基准、邻居设置和损失权重。它们影响模型语义，即使不在 optimizer 中也要保存。恢复后的第一批输出、力和单位检查，可以比只比较最终 loss 更早发现接口错误。把这些状态组织清楚后，再扩展异步数据加载与多设备训练，才能判断变化来自系统还是方法。
+
+## 9. 常见误区与失败模式
+
+- 把 detach 当作复制，或在共享数组上原地改值后误判输入来源。
+- 只保存权重，再重置优化器、调度器与 shuffle 后声称完整续训。
+- 仅用 no_grad 做评估，忘记 eval，导致 Dropout 和统计状态变化。
+- 不按样本权重汇总 batch 损失，或把训练数据上的恢复核验分数当泛化结果。
+
+## 10. 小结
+
+训练工程首先是状态工程。形状与布局定义数据接口，注册与模式定义模型行为，优化器和随机源定义后续更新。明确恢复边界并实际比较连续训练与恢复训练，是比只写出保存命令更有力的核验。
+
+## 11. 我的笔记
+
+::: {.callout-note .anno-note title="本章总结"}
+（由学习者本人填写。）
+:::
