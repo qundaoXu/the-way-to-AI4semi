@@ -24,7 +24,7 @@ import tracemalloc
 import matplotlib.pyplot as plt
 import numpy as np
 
-from semiai.plotting import BLUE, GRID, INK, MUTED, ORANGE, SURFACE, plotly_html, use_style
+from semiai.plotting import BLUE, MUTED, ORANGE, plotly_html, plotly_layout, use_style
 
 use_style()
 ```
@@ -237,15 +237,14 @@ steps = [dict(method="update", label=str(p),
               args=[{"visible": [j == i for j in range(len(digits))]},
                     {"title.text": titles[i], "shapes": shapes[i]}])
          for i, p in enumerate(digits)]
-fig.update_layout(
+fig.update_layout(**plotly_layout(
     title=dict(text=titles[start], font=dict(size=13, color=MUTED), x=0.02),
     shapes=shapes[start],
     sliders=[dict(active=start, steps=steps, currentvalue=dict(prefix="有效数字 p = "), pad=dict(t=30))],
-    xaxis=dict(title="log10(相对误差)", range=[-18, -3], gridcolor=GRID, zeroline=False),
-    yaxis=dict(title="坐标数", gridcolor=GRID, zeroline=False),
-    paper_bgcolor=SURFACE, plot_bgcolor=SURFACE, font=dict(color=INK),
+    xaxis=dict(title="log10(相对误差)", range=[-18, -3]),
+    yaxis=dict(title="坐标数"),
     margin=dict(l=50, r=20, t=60, b=20), height=420,
-)
+))
 plotly_html(fig)
 ```
 
@@ -259,7 +258,7 @@ plotly_html(fig)
 
 **异常设计。** 为自己的库定义一个根异常类，再按调用方**需要做出的不同反应**细分子类，而不是按出错的代码位置细分。异常对象可以携带结构化字段（如未收敛的步数和残差）；转换异常类型时用 `raise NewError(...) from err` 保留原因；向上传递时用 `err.add_note(...)`（Python 3.11 起）补充上下文。不要用 `except Exception: pass` 吞掉错误，它会把一个可诊断的失败变成一个不可诊断的错误结果。
 
-**科学数据格式怎么选。** 下表是几种常见格式的取舍。HDF5 需要 `h5py`，本仓库暂未引入，这里只做概念比较。
+**科学数据格式怎么选。** 下表是几种常见格式的取舍。本章先比较存储语义；HDF5、Parquet 与结构数据库的实际读写、schema 和事务示例见 [M03.1](../../03-data-science/notes/01-data-acquisition-storage.qmd)，相应依赖已放入 `data` extra。
 
 | 格式 | 自描述 | 浮点精度 | 部分读取 | 安全 | 跨语言 | 适用 |
 |---|---|---|---|---|---|---|
@@ -298,7 +297,7 @@ pickle 存的不是数据，而是一段“如何重建对象”的指令。对�
 
 **大体系数据。** 百万原子的轨迹、高分辨率的电荷密度网格，一次读入往往放不进内存。生成器适合顺序扫描（例如计算 RDF、MSD 的累加量），需要随机访问时用 HDF5 的分块存储或 `.npy` 的内存映射。
 
-**MLIP 数据集与检查点。** 很多 MLIP 训练流程以 extxyz 作为数据格式，能量、力、应力分别写在注释行和 `Properties` 声明的列里。写数据集时用足够的有效数字，否则力的标签会带上额外的截断噪声。PyTorch 的 `torch.save` 默认使用 pickle，加载他人发布的检查点时要注意 pickle 的安全问题；较新版本的 PyTorch 已把 `torch.load` 的 `weights_only` 默认值改为 `True`，只允许加载张量等安全类型。
+**MLIP 数据集与检查点。** 很多 MLIP 训练流程以 extxyz 作为数据格式，能量、力、应力分别写在注释行和 `Properties` 声明的列里。写数据集时用足够的有效数字，否则力的标签会带上额外的截断噪声。PyTorch 的 `torch.save` 默认使用 pickle，加载他人发布的检查点时要注意 pickle 的安全问题；PyTorch 自 2.6 起，在未显式传入 `pickle_module` 时默认 `weights_only=True`，使用面向张量与基本类型的受限反序列化；本仓库 [M05.3](../../05-deep-learning/notes/03-pytorch-engineering.qmd) 显式指定该选项并演示完整续训状态。
 
 本章没有直接对应的研究锚点。它是 [M01.5 高性能科学 Python](05-high-performance-python.qmd) 和 Module 05 中 PyTorch 数据管线的基础。
 

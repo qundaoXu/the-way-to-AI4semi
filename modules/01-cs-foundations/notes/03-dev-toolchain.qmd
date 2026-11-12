@@ -68,7 +68,8 @@ def node(ax, xy, label, color=BLUE, dashed=False):
                         ls=(0, (3, 2)) if dashed else "-", zorder=3)
     ax.add_patch(circle)
     ax.text(*xy, label, ha="center", va="center", zorder=4,
-            color=MUTED if dashed else SURFACE, fontsize=12, fontweight="bold")
+            color=MUTED if dashed else SURFACE, fontsize=12, fontweight="bold",
+            fontfamily="sans-serif")
 
 
 def edge(ax, child, parent, dashed=False):

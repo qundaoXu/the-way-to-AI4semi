@@ -74,9 +74,9 @@ $$ {#eq-nneigh}
 | 结构 | 便宜的操作 | 代价 | 科学计算中的典型用途 |
 |---|---|---|---|
 | 数组（`ndarray`、`list`） | 按下标访问 $O(1)$；顺序扫描对缓存友好 | 成员查询、中间插入 $O(n)$ | 坐标、力、轨迹帧 |
-| 哈希表（`dict`、`set`） | 按键查找、插入平均 $O(1)$ | 内存更多；无序；键必须可哈希 | cell 编号 → 粒子列表；已访问集合 |
-| 堆（`heapq`） | 取最小元素 $O(\log n)$ | 只保证堆顶有序 | 最近 $k$ 个邻居；事件驱动模拟的事件队列 |
-| 树（KD-tree、平衡树） | 范围查询、最近邻 $O(\log n)$ | 建树 $O(n\log n)$；高维退化 | 非均匀密度下的邻居搜索 |
+| 哈希表（`dict`、`set`） | 按键查找、插入平均 $O(1)$ | 内存更多；键必须可哈希；`dict` 保留插入顺序，`set` 不保证顺序 | cell 编号 → 粒子列表；已访问集合 |
+| 堆（`heapq`） | 查看最小值 $O(1)$，弹出最小值 $O(\log n)$ | 只保证堆顶有序 | 最近 $k$ 个邻居；事件驱动模拟的事件队列 |
+| 树（KD-tree、平衡树） | 平衡搜索树查找 $O(\log n)$；KD-tree 在低维有利数据上可接近对数查询 | KD-tree 最坏查询可退化到 $O(n)$，范围查询还取决于返回点数 | 非均匀密度下的邻居搜索 |
 | 图（邻接表、稀疏矩阵） | 遍历邻居 $O(\text{度})$ | 构建需要先有邻居对 | 键网络、团簇、环、反应网络 |
 
 排序是另一个基本工具。一次 $O(n\log n)$ 的排序之后，任意“小于某值的有几个”都只要一次 $O(\log n)$ 的二分查找。累积配位数 $n(r)$ 就是这样算的。
@@ -318,7 +318,7 @@ cell[i] ← floor(r_i / (L/m)) mod m            # 先把坐标折回盒内
 ## 10. 小结
 
 - 复杂度决定代码能处理多大的体系；在 log–log 图上看斜率，而不是看某一个规模下的绝对耗时。
-- 哈希表把查找变成平均 $O(1)$，堆把“取最小”变成 $O(\log n)$，排序后二分查找把阈值计数变成 $O(\log n)$。
+- 哈希表把查找变成平均 $O(1)$，堆把“弹出最小项”变成 $O(\log n)$（读取堆顶为 $O(1)$），排序后二分查找把阈值计数变成 $O(\log n)$。
 - 最小镜像在 $r_c \le L/2$（三斜盒子用面间距）时成立，否则同一对粒子可能有多个镜像在截断内。
 - 固定密度下 cell list 是 $O(N)$，约 85% 的候选距离落在截断外；Verlet list 压低常数，KD-tree 适合非均匀密度。
 - 原子构型可以转为稀疏图：连通分量给出团簇和逾渗，BFS 与最短路给出化学距离和环。
@@ -335,4 +335,4 @@ cell[i] ← floor(r_i / (L/m)) mod m            # 先把坐标折回盒内
 - Allen, M. P., Tildesley, D. J. *Computer Simulation of Liquids*, 2nd ed. Oxford University Press, 2017. ISBN 978-0-19-880319-5. `[待核实]`（第 5 章标题“Some tricks of the trade”已核对，邻居列表所在的小节编号未核实）
 - SciPy 文档：`scipy.spatial.cKDTree`。<https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.cKDTree.html>
 - SciPy 文档：`scipy.sparse.csgraph`。<https://docs.scipy.org/doc/scipy/reference/sparse.csgraph.html>
-- Franzblau, D. S. Computation of ring statistics for network models of solids. *Phys. Rev. B* **44**, 4925 (1991). `[待核实]`
+- Franzblau, D. S. Computation of ring statistics for network models of solids. *Phys. Rev. B* **44**, 4925 (1991). [DOI](https://doi.org/10.1103/PhysRevB.44.4925)。该文定义 shortest-path 环；notebook 的“删边后最短路”示例用于说明定义依赖，不等同于完整实现该文的环枚举算法。
