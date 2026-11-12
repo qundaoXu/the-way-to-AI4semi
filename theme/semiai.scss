@@ -1,28 +1,29 @@
 /*-- scss:defaults --*/
 
-// 字体：正文衬线（西文在前，中文回退到思源宋体 / 系统宋体），标题与界面无衬线，代码等宽。
-// 全部使用本机字体，按顺序回退，不加载网络字体。
-$semiai-font-body: "Charter", "Iowan Old Style", "Georgia", "Source Han Serif SC",
-  "Noto Serif CJK SC", "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif !default;
-$font-family-sans-serif: -apple-system, "PingFang SC", "Source Han Sans SC", "Noto Sans CJK SC",
-  "Noto Sans SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif !default;
-$font-family-monospace: "JetBrains Mono", "SF Mono", "Menlo", "Consolas", "Sarasa Mono SC",
+// macOS 优先使用系统西文字体、苹方和 SF Mono；不下载或分发系统字体。
+$font-family-sans-serif: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+  "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei", "Helvetica Neue", Arial,
+  sans-serif !default;
+$semiai-font-body: $font-family-sans-serif !default;
+$font-family-monospace: "SFMono-Regular", "SF Mono", "Menlo", "Consolas", "Liberation Mono",
   monospace !default;
 
 $font-size-root: 17px !default;
 $line-height-base: 1.75 !default;
-$headings-font-weight: 600 !default;
+$headings-font-weight: 500 !default;
 
-// 浅色模式：低眩光的暖白背景
-$body-bg: #fbfaf6 !default;
-$body-color: #26251f !default;
-$link-color: #1f5fae !default;
-$code-bg: #f1efe8 !default;
-$code-color: #8a3324 !default;
+// 纸白与石墨中性色；蓝色只标识链接、当前位置和操作。
+$body-bg: #fafaf9 !default;
+$body-color: #242629 !default;
+$link-color: #245b83 !default;
+$code-bg: #f0f1f1 !default;
+$code-color: #40566b !default;
 
-$semiai-muted: #6b6a63 !default;
-$semiai-border: #e2dfd5 !default;
-$semiai-panel: #f4f2eb !default;
+$semiai-muted: #666b70 !default;
+$semiai-border: #dfe1e2 !default;
+$semiai-panel: #f2f3f2 !default;
+$navbar-bg: $body-bg !default;
+$navbar-fg: $body-color !default;
 
 // 批注颜色：学习者的批注用暖色系，Agent 的回答用冷色
 $anno-note: #b7791f !default;
@@ -33,21 +34,29 @@ $anno-tutor: #1d6fb8 !default;
 $anno-tint: 7% !default;
 
 // 学习状态颜色（首页与页眉）
-$state-not-started: #c9c6ba !default;
-$state-reading: #2a78d6 !default;
-$state-practicing: #eb6834 !default;
-$state-reviewed: #1baf7a !default;
-$state-mastered: #008300 !default;
+$state-not-started: #c7cbce !default;
+$state-reading: #3775ba !default;
+$state-practicing: #b97939 !default;
+$state-reviewed: #42949e !default;
+$state-mastered: #49765b !default;
 
 /*-- scss:rules --*/
+
+// Design workflow: unslop by Damir Sokolovsky, CC BY 4.0.
+// https://github.com/heydamir/unslop
+// 方向：安静、精确的科研阅读界面；公式、图和代码是视觉重点。
 
 // ---------------------------------------------------------------- 版式
 
 main.content {
   font-family: $semiai-font-body;
 
+  a {
+    overflow-wrap: anywhere;
+  }
+
   p {
-    margin-bottom: 1.05em;
+    margin-bottom: 20px;
   }
 
   h1,
@@ -59,13 +68,19 @@ main.content {
   }
 
   h2 {
-    margin-top: 2.4em;
-    padding-bottom: 0.3em;
+    margin-top: 40px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
     border-bottom: 1px solid $semiai-border;
+    font-size: 24px;
+    line-height: 1.4;
   }
 
   h3 {
-    margin-top: 1.8em;
+    margin-top: 32px;
+    margin-bottom: 12px;
+    font-size: 20px;
+    line-height: 1.5;
   }
 
   table {
@@ -75,33 +90,183 @@ main.content {
     td,
     th {
       text-align: left;
+      padding: 12px;
+      border-color: $semiai-border;
     }
+
+    th {
+      font-weight: 500;
+      background: $semiai-panel;
+    }
+
+    tbody tr:hover {
+      background: mix($body-color, $body-bg, 3%);
+    }
+  }
+}
+
+#title-block-header {
+  margin-bottom: 24px;
+
+  .title {
+    font-size: clamp(28px, 2.6vw, 36px);
+    font-weight: 500;
+    line-height: 1.3;
+    margin-bottom: 8px;
   }
 }
 
 .subtitle {
   color: $semiai-muted;
+  font-size: 18px;
+  font-weight: 400;
 }
 
-code,
+code {
+  font-size: 0.875em;
+}
+
 pre {
-  font-size: 0.86em;
+  font-size: 14px;
+  line-height: 1.65;
+
+  code {
+    font-size: inherit;
+  }
+}
+
+div.sourceCode {
+  border: 1px solid $semiai-border;
+  border-radius: 8px;
+}
+
+.cell > details > summary {
+  color: $semiai-muted;
+  font-family: $font-family-sans-serif;
+  font-size: 13px;
+  padding: 8px 0;
+}
+
+// 长公式在自身区域内滚动，保留公式编号，不把窄屏页面撑宽。
+.math.display {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-block: 4px;
+}
+
+// 键盘定位与鼠标悬停共用主题强调色。
+a,
+button,
+summary {
+  transition: color 160ms ease-out, background-color 160ms ease-out,
+    border-color 160ms ease-out;
+
+  &:focus-visible {
+    outline: 2px solid $link-color;
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+}
+
+// ---------------------------------------------------------------- 导航
+
+#quarto-header .navbar {
+  background: $body-bg;
+  border-bottom: 1px solid $semiai-border;
+  box-shadow: none;
+
+  .navbar-brand {
+    font-size: 18px;
+    font-weight: 500;
+  }
+
+  .nav-link {
+    font-size: 14px;
+    font-weight: 400;
+  }
+}
+
+#quarto-sidebar {
+  font-family: $font-family-sans-serif;
+  border-right: 1px solid $semiai-border;
+
+  .sidebar-item-container {
+    min-height: 32px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    align-items: flex-start;
+
+    &:hover {
+      background: $semiai-panel;
+    }
+  }
+
+  .sidebar-item-text {
+    font-size: 14px;
+    line-height: 1.55;
+    font-weight: 400;
+    overflow-wrap: anywhere;
+
+    &.active {
+      color: $link-color;
+      font-weight: 500;
+      box-shadow: -2px 0 0 $link-color;
+    }
+  }
+
+  .sidebar-section {
+    padding-left: 8px;
+  }
+}
+
+#quarto-margin-sidebar {
+  font-family: $font-family-sans-serif;
+  min-width: 0;
+
+  #toc-title {
+    color: $body-color;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 12px;
+  }
+
+  .nav-link {
+    font-size: 13px;
+    line-height: 1.6;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    color: $semiai-muted;
+    overflow-wrap: anywhere;
+
+    &.active,
+    &:hover {
+      color: $link-color;
+    }
+  }
+}
+
+.quarto-page-breadcrumbs {
+  font-size: 13px;
+  color: $semiai-muted;
 }
 
 figcaption,
 .figure-caption,
 .table-caption {
   font-family: $font-family-sans-serif;
-  font-size: 0.86em;
+  font-size: 13px;
+  line-height: 1.6;
   color: $semiai-muted;
   text-align: left;
 }
 
-// 图：固定浅色衬底，深色模式下也能看清 matplotlib / Plotly 输出
+// 科学图保持白底与方角；深色页面也保留原始图表的颜色语义。
 .quarto-figure img,
 .cell-output-display img {
-  background: #fcfcfb;
-  border-radius: 6px;
+  background: #ffffff;
+  border-radius: 0;
   max-width: 100%;
   height: auto;
 }
@@ -111,7 +276,7 @@ figcaption,
 .margin-caption,
 .aside {
   font-family: $font-family-sans-serif;
-  font-size: 0.82em;
+  font-size: 13px;
   line-height: 1.6;
   color: $semiai-muted;
 
@@ -134,15 +299,15 @@ mark,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.45rem 0.7rem;
-  margin: -0.4rem 0 1.8rem;
-  padding: 0.55rem 0.8rem;
+  gap: 8px 16px;
+  margin: 0 0 32px;
+  padding: 12px 0;
   font-family: $font-family-sans-serif;
-  font-size: 0.8rem;
+  font-size: 13px;
   color: $semiai-muted;
-  background: $semiai-panel;
-  border: 1px solid $semiai-border;
-  border-radius: 8px;
+  background: transparent;
+  border-block: 1px solid $semiai-border;
+  font-variant-numeric: tabular-nums;
 
   a {
     text-decoration: none;
@@ -152,18 +317,15 @@ mark,
 // 非章节页面只有编辑按钮：不画面板
 .semiai-pagebar-plain {
   padding: 0;
-  margin-bottom: 0.6rem;
+  margin-bottom: 8px;
   background: none;
   border: none;
 }
 
 .semiai-chip {
-  padding: 0.05rem 0.5rem;
-  border: 1px solid $semiai-border;
-  border-radius: 999px;
-  background: $body-bg;
+  padding: 0;
   color: $body-color;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .semiai-chip-id {
@@ -171,12 +333,12 @@ mark,
 }
 
 .semiai-label {
-  margin-right: 0.35rem;
-  opacity: 0.75;
+  margin-right: 8px;
+  color: $semiai-muted;
 }
 
 .semiai-state {
-  font-weight: 600;
+  font-weight: 400;
   color: $body-color;
 
   &::before {
@@ -200,12 +362,12 @@ mark,
 
 .semiai-edit {
   margin-left: auto;
-  padding: 0.1rem 0.6rem;
+  padding: 4px 8px;
   border: 1px solid $semiai-border;
   border-radius: 6px;
   background: $body-bg;
   color: $link-color;
-  font-weight: 600;
+  font-weight: 400;
 
   &:hover {
     border-color: $link-color;
@@ -237,13 +399,13 @@ a.semiai-source-link::after {
       &::after {
         content: $label;
         margin-left: auto;
-        padding: 0 0.5rem;
-        font-size: 0.72rem;
-        font-weight: 600;
+        padding: 0 8px;
+        font-size: 12px;
+        font-weight: 500;
         white-space: nowrap;
         color: $color;
         border: 1px solid $color;
-        border-radius: 999px;
+        border-radius: 4px;
         align-self: center;
       }
     }
@@ -251,12 +413,12 @@ a.semiai-source-link::after {
 }
 
 .anno {
-  margin: 1.2rem 0;
-  scroll-margin-top: 5rem;
+  margin: 24px 0;
+  scroll-margin-top: 80px;
 
   > .callout {
     margin: 0;
-    border-left-width: 5px;
+    border-left-width: 3px;
   }
 
   &:target > .callout {
@@ -281,50 +443,60 @@ a.semiai-source-link::after {
 // Agent 的回答紧跟在疑问下方时向右缩进，形成问答关系
 .anno-question + .anno-tutor,
 .anno-bug + .anno-tutor {
-  margin-top: -0.6rem;
-  margin-left: 1.5rem;
+  margin-top: -8px;
+  margin-left: 24px;
 }
 
 // ---------------------------------------------------------------- 首页仪表盘
 
 .dash-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 0.8rem;
-  margin: 1.2rem 0 2rem;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0;
+  margin: 24px 0 32px;
+  padding: 20px 0;
+  border-block: 1px solid $semiai-border;
   font-family: $font-family-sans-serif;
 }
 
 .dash-tile {
-  padding: 0.8rem 1rem;
-  background: $semiai-panel;
-  border: 1px solid $semiai-border;
-  border-radius: 10px;
+  padding: 0 20px;
+  border-left: 1px solid $semiai-border;
+
+  &:first-child {
+    padding-left: 0;
+    border-left: 0;
+  }
 
   .dash-value {
-    font-size: 1.7rem;
-    font-weight: 650;
+    font-size: 28px;
+    font-weight: 500;
     line-height: 1.2;
     color: $body-color;
+    font-variant-numeric: tabular-nums;
   }
 
   .dash-label {
-    font-size: 0.8rem;
+    margin-top: 8px;
+    font-size: 13px;
+    line-height: 1.5;
     color: $semiai-muted;
   }
 }
 
 .dash-modules {
   font-family: $font-family-sans-serif;
-  font-size: 0.85rem;
-  margin: 1rem 0 0.6rem;
+  font-size: 14px;
+  margin: 24px 0 12px;
 
   .dash-row {
     display: grid;
-    grid-template-columns: minmax(9rem, 15rem) 1fr 9.5rem;
+    grid-template-columns: minmax(160px, 240px) minmax(48px, 1fr) 156px;
     align-items: center;
-    gap: 0.8rem;
-    padding: 0.28rem 0;
+    gap: 16px;
+    min-height: 36px;
+    padding: 8px 0;
+    border-bottom: 1px solid $semiai-border;
   }
 
   .dash-name a {
@@ -341,8 +513,8 @@ a.semiai-source-link::after {
 .dash-bar {
   display: flex;
   gap: 2px;
-  height: 10px;
-  border-radius: 5px;
+  height: 8px;
+  border-radius: 2px;
   overflow: hidden;
   background: transparent;
 
@@ -361,18 +533,18 @@ a.semiai-source-link::after {
 .dash-seg-unbuilt {
   background: transparent;
   border: 1px dashed $state-not-started;
-  border-radius: 5px;
+  border-radius: 2px;
   box-sizing: border-box;
 }
 
 .dash-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem 1rem;
+  gap: 8px 16px;
   font-family: $font-family-sans-serif;
-  font-size: 0.78rem;
+  font-size: 12px;
   color: $semiai-muted;
-  margin-bottom: 1.5rem;
+  margin-bottom: 24px;
 
   i {
     display: inline-block;
@@ -380,5 +552,91 @@ a.semiai-source-link::after {
     height: 0.6em;
     margin-right: 0.35em;
     border-radius: 2px;
+  }
+}
+
+// Quarto 负责三栏折叠；这里只调整自定义组件，避免手机页面被固定宽度撑开。
+@media (max-width: 991.98px) {
+  main.content table,
+  .cell-output-display {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .dash-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 24px;
+  }
+
+  .dash-tile:nth-child(3n + 1) {
+    border-left: 0;
+    padding-left: 0;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .semiai-pagebar {
+    gap: 8px 12px;
+  }
+
+  .semiai-edit {
+    margin-left: 0;
+  }
+
+  .dash-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dash-tile {
+    padding: 0 16px;
+
+    &:nth-child(n) {
+      border-left: 1px solid $semiai-border;
+      padding-left: 16px;
+    }
+
+    &:nth-child(2n + 1) {
+      border-left: 0;
+      padding-left: 0;
+    }
+  }
+
+  .dash-modules .dash-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+  }
+
+  .dash-name {
+    grid-column: 1;
+    min-width: 0;
+  }
+
+  .dash-count {
+    grid-column: 2;
+    grid-row: 1;
+    font-size: 12px;
+  }
+
+  .dash-bar {
+    grid-column: 1 / -1;
+  }
+
+  .anno > .callout > .callout-header {
+    flex-wrap: wrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within,
+  html {
+    scroll-behavior: auto !important;
+  }
+
+  a,
+  button,
+  summary {
+    transition: none;
   }
 }

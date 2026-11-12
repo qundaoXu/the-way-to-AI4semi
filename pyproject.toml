@@ -28,6 +28,10 @@ dependencies = [
 
 [project.optional-dependencies]
 perf = ["numba", "line-profiler"]
+# M03.1：层次/列式存储、结构数据库与键值事务的实际对照。
+data = ["h5py", "pyarrow", "ase", "lmdb"]
+# M05：自动微分、训练循环、卷积与序列模型，实例显式使用 CPU。
+dl = ["torch"]
 
 [dependency-groups]
 dev = [
@@ -59,3 +63,14 @@ extend-exclude = ["_site", "_freeze", ".quarto", "library"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "NPY"]
+
+# Linux/Windows 的本地学习与 CI 使用官方 CPU wheel；macOS 使用 PyPI 原生构建。
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

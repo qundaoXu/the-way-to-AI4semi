@@ -49,10 +49,24 @@ make nb M=NN          # 执行该模块全部 notebook，输出写回文件
 - 文中出现的数字和结论必须来自实际输出；改了代码就重新执行，不提交未执行或输出与代码不一致的 notebook（`check_repo.py` 检查是否全部执行、有无报错输出）。
 - 引用讲义的公式用链接：`[讲义式名称](../notes/<讲义>.qmd#eq-xxx)`。`@eq-` 交叉引用只在同一页面内有效。
 - 全部单元在 CPU 上合计约 1 分钟内跑完，只用 `pyproject.toml` 已声明的依赖；随机性用 `np.random.default_rng(seed)`。
-- 绘图用 `semiai.plotting.use_style()`；表格优先用 pandas `DataFrame` 显示。
+- 绘图用 `semiai.plotting.use_style()`；notebook 的初始化单元调用 `set_matplotlib_formats("svg")`（来自 `matplotlib_inline.backend_inline`），保存可编辑文字的矢量输出。表格优先用 pandas `DataFrame` 显示。
 - 计时类结果写明它依赖机器，结论只用相对量（倍数、scaling 指数），不写绝对时间作为结论。
 - 需要读写文件时只在 `tempfile.TemporaryDirectory()` 里进行，不在仓库里留下产物。
 - 通过 `ruff check`（行宽 100）。
+
+### 绘图风格与输出刷新
+
+静态图遵循 Nature 绘图 skill：先明确图要解释的结论，再安排面板与证据。使用白底、无衬线字体、细坐标轴和无边框图例，默认关闭网格；颜色用于区分数据系列，参照信息使用灰色，多系列同时结合线型或标记。公共设置见 [`semiai.plotting`](../src/semiai/plotting.py)，导出 SVG 保留文字，PDF 使用 TrueType 字体；网页采用适合屏幕阅读的字号。[Nature 图表制作指南](https://research-figure-guide.nature.com/figures/building-and-exporting-figure-panels/)说明了标准字体、可编辑文字与图表布局的要求。
+
+交互图用 `plotly_layout()` 继承同一套白底、字体与配色，再用 `plotly_html()` 嵌入，避免与页面 MathJax 冲突。
+
+公共绘图样式改变后，要重新执行相关 notebook 并保存输出，同时刷新讲义缓存；只重新生成 HTML 会沿用旧图。例如：
+
+```bash
+make nb M=01
+uv run quarto render modules/01-cs-foundations/notes --cache-refresh
+make site
+```
 
 ## 5. 练习桩的写法（M04.2）
 

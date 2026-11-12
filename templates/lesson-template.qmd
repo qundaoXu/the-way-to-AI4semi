@@ -29,6 +29,7 @@ code-summary: "显示绘图代码"
   只用核心依赖，在 CPU 上数秒内完成。逐步讲解的代码放进同名实例 notebook
   （../notebooks/<本文件同名>.ipynb，模板见 templates/notebook-template.py）。
 - 绘图统一用 semiai.plotting：from semiai.plotting import BLUE, ORANGE, use_style。
+  遵循 Nature 绘图风格：先定义图的结论，再安排面板；白底、细轴、克制配色，输出 SVG。
 -->
 
 ## 0. 定位

@@ -36,21 +36,28 @@ make check      # 验证：ruff + 参考解答测试 + 仓库一致性 + 索引�
 
 ### 依赖分组
 
-`pyproject.toml` 的 `dependencies` 只有核心科学栈（NumPy、SciPy、pandas、Matplotlib、scikit-learn、Plotly）和渲染所需的 Jupyter 组件。重量级依赖只在某章确实需要时才加入，届时放在这些 extras 里：
+核心依赖包括科学 Python 栈和 Quarto 的 Jupyter 组件。已建设章节还使用以下可选依赖，版本由 `uv.lock` 锁定：
 
 | extra | 内容 | 首次需要的章节 |
 |---|---|---|
+| `perf` | Numba、line_profiler | M01.5 |
+| `data` | h5py、PyArrow、ASE、LMDB | M03.1 |
 | `dl` | PyTorch | M05 |
-| `geometric` | e3nn、PyTorch Geometric | M06.2、M06.3 |
-| `atomistic` | ASE、pymatgen | M01.2、M07 |
-| `boosting` | XGBoost、LightGBM | M04.4 |
-| `mlops` | MLflow 等 | M09.2 |
 
-这些 extras 目前都还没有定义。
+完整运行 M01–M05 的 notebook、刷新讲义绘图缓存前，安装这些分组：
+
+```bash
+uv sync --locked --extra perf --extra data --extra dl
+make check
+```
+
+`make setup` 安装核心环境；可选依赖按上面的命令补齐。`geometric`、`atomistic`、`boosting`、`mlops` 等未来分组尚未定义，首次实际需要时再加入。M04.4 运行 sklearn 的树模型与直方图提升，XGBoost、LightGBM 是工程机制导读，因此未为此安装额外库。
 
 ### PyTorch 的 CPU 与 CUDA 版本
 
-PyTorch 尚未加入依赖。建设 M05 时再确定安装方式，原则是：本地开发与 CI 用 CPU 版，练习默认在 CPU 上数分钟内跑完；集群上按 CUDA 版本从 PyTorch 官方索引安装对应的 wheel，需要 GPU 的测试用 `@pytest.mark.gpu` 标记，默认不运行。具体命令在加入 `dl` extra 时补充到这里。
+M05 的全部实例显式使用 CPU；本次在 macOS、PyTorch 2.15.0 执行并保存输出。Linux 与 Windows 的 `dl` 分组通过 `pyproject.toml` 的平台标记选择 PyTorch 官方 CPU 索引，macOS 使用 PyPI 的原生构建，配置方式见 [uv 官方 PyTorch 集成指南](https://docs.astral.sh/uv/guides/integration/pytorch/)。Linux CI 安装相同三个 extra 后运行检查与渲染，本地尚未模拟远程 CI。
+
+不需要 CUDA 或 GPU 即可阅读和运行这些实例。集群 CUDA 环境需根据驱动与官方 wheel 单独选择后端并更新对应锁定配置，再核验精度和确定性；本次未验证 GPU、MPS、多进程或分布式训练。notebook 的完整恢复核验限定于同一 CPU 环境、单进程 DataLoader 和 epoch 边界。
 
 ## 3. 学习网站
 

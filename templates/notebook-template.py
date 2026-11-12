@@ -36,10 +36,12 @@
 # %%
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib_inline.backend_inline import set_matplotlib_formats
 
 from semiai.plotting import BLUE, use_style
 
 use_style()
+set_matplotlib_formats("svg")
 rng = np.random.default_rng(0)
 
 # %% [markdown]

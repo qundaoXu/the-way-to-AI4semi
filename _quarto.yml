@@ -36,7 +36,7 @@ project:
 lang: zh
 
 website:
-  title: "半导体 AI 学习库"
+  title: "the way to AI4Semi"
   search:
     location: navbar
     type: overlay
@@ -140,6 +140,8 @@ format:
     toc-depth: 3
     toc-title: 本页目录
     lightbox: true            # 图片点击放大
+    fig-format: svg          # 科学图使用矢量格式，保留可编辑文字
+    fig-dpi: 300              # 需要栅格输出时的默认分辨率
     code-copy: true
     code-overflow: wrap
     highlight-style:
@@ -149,10 +151,11 @@ format:
     link-external-newwindow: true
     smooth-scroll: true
     grid:
-      sidebar-width: 270px
-      body-width: 740px
-      margin-width: 290px
-      gutter-width: 1.6rem
+      # Quarto 的基准宽度；实际三栏随视口缩放，窄屏沿用内置折叠导航。
+      sidebar-width: 216px
+      body-width: 960px
+      margin-width: 184px
+      gutter-width: 24px
 
 # 只修改文字或批注时不重复执行代码；_freeze/ 提交到仓库。
 execute:

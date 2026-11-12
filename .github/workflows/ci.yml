@@ -27,10 +27,14 @@ jobs:
         with:
           version: 1.11.9
 
-      # 安装核心依赖与 dev 组。
-      # PyTorch 尚未加入依赖；加入 dl extra 后在这里安装 CPU 版。
+      - name: Install CJK font for figures
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-noto-cjk
+
+      # 安装已建设 M01–M05 的依赖；Linux torch 由锁文件选择官方 CPU wheel。
       - name: Install dependencies
-        run: uv sync --locked
+        run: uv sync --locked --extra perf --extra data --extra dl
 
       # ruff + 以参考解答运行全部测试 + 仓库一致性 + 索引检查。
       # 标记为 slow 或 gpu 的测试默认不运行。

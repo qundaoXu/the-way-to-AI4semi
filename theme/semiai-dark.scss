@@ -1,18 +1,18 @@
 /*-- scss:defaults --*/
 
 // 深色模式：只覆盖颜色变量，版式与规则全部来自 semiai.scss。
-$body-bg: #1b1c1e;
-$body-color: #dcd9d1;
-$link-color: #7fb2f0;
-$code-bg: #2a2b2e;
-$code-color: #f0a58f;
+$body-bg: #1c1e20;
+$body-color: #e2e4e6;
+$link-color: #8cbce0;
+$code-bg: #26292c;
+$code-color: #b5cadd;
 
-$navbar-bg: #222326;
-$navbar-fg: #dcd9d1;
+$navbar-bg: #1c1e20;
+$navbar-fg: #e2e4e6;
 
-$semiai-muted: #a3a097;
-$semiai-border: #3a3b3f;
-$semiai-panel: #242528;
+$semiai-muted: #a2a8ae;
+$semiai-border: #393d41;
+$semiai-panel: #24272a;
 
 $anno-note: #d9a441;
 $anno-question: #f08a4b;
@@ -22,7 +22,7 @@ $anno-tutor: #5aa9e6;
 $anno-tint: 12%;
 
 $state-not-started: #55565b;
-$state-reading: #3987e5;
-$state-practicing: #d95926;
-$state-reviewed: #199e70;
-$state-mastered: #3aa83a;
+$state-reading: #7ba5d5;
+$state-practicing: #d5a16b;
+$state-reviewed: #74b1b7;
+$state-mastered: #88b497;
