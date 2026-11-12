@@ -38,6 +38,16 @@
 | $\nabla_{\mathbf{w}} J$ | 梯度，与 $\mathbf{w}$ 同形状的列向量 |
 | $\nabla^2_{\mathbf{w}} J$ | Hessian |
 | $\dfrac{\partial \mathbf{f}}{\partial \mathbf{x}}$ | Jacobian，分子布局：第 $i$ 行第 $j$ 列为 $\partial f_i / \partial x_j$ |
+| $df=\operatorname{tr}((\nabla_X f)^\top dX)$ | 以 Frobenius 内积定义矩阵梯度，$\nabla_X f$ 与 $X$ 同形状 |
+
+## 群表示与随机过程
+
+| 记法 | 含义 |
+|---|---|
+| $R\in\mathrm{SO}(3)$ | 主动旋转，列向量 $\mathbf r'=R\mathbf r$；代码行存储对应 `r @ R.T` |
+| $D_l(R)$、$\mathbf Y_l$ | 固定阶数的旋转表示与球谐块；具体实基顺序在 M02.7 明示 |
+| $P$、$\boldsymbol\pi$ | Markov 转移矩阵与平稳行分布，$\boldsymbol\pi P=\boldsymbol\pi$；与投影矩阵按语境区分 |
+| $W_t$、$dW_t$ | 标准 Wiener 过程及其增量，增量方差为时间间隔 |
 
 ## 概率与统计
 
@@ -80,3 +90,16 @@
 | $k_B$、$T$ | Boltzmann 常数、温度 | eV/K、K |
 
 代码中涉及物理量时，在 docstring 里写明单位。
+
+## 神经网络与能量导数
+
+| 记法 | 含义与约定 |
+|---|---|
+| $H^{(l)}$、$Z^{(l)}$、$W^{(l)}$ | MLP 行样本表示、预激活与权重；讲义 NumPy 权重为 in×out，PyTorch Linear 存储 out×in |
+| $\Delta^{(l)}$ | 损失对该层预激活的梯度，与 batch×通道形状一致 |
+| $Jv$、$J^\top u$ | JVP、VJP；Jacobian 仍使用输出×输入的分子布局 |
+| $\epsilon_{ab}$、$V_0$ | 无量纲仿射形变与参考体积；M05.2 取行坐标 $R(\epsilon)=R_0(I+\epsilon)^\top$ |
+| $\sigma_{ab}=V_0^{-1}\partial E/\partial\epsilon_{ab}$ | 本仓库示例的能量应变应力约定，不含动能；比较软件时核对符号、体积与剪切因子 |
+| $h_t$、$c_t$ | 递推隐藏状态与 LSTM cell 状态；时间用下标，网络层用上标 |
+
+M05.2 的 LJ 实例明确使用约化单位 $\varepsilon=\sigma=m=1$，与全站默认 eV/Å 单位区分。该章的 $\varepsilon$ 用于 LJ 能量尺度，形变用 $\boldsymbol\epsilon$，含义在段落中说明。

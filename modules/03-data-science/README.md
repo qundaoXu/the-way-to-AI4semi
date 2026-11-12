@@ -13,12 +13,12 @@
 
 | ID | 章节 | 优先级 | 先修 | 锚点 | 建设状态 | 学习状态 |
 |---|---|---|---|---|---|---|
-| M03.1 | 数据获取与存储<br>Data Acquisition and Storage | P0 | — | — | Planned | Not Started |
-| M03.2 | 数据处理<br>Data Wrangling | P0 · FT | M03.1 | — | Planned | Not Started |
-| M03.3 | 探索性数据分析与可视化<br>Exploratory Data Analysis and Visualization | P0 | M03.2, M02.3 | — | Planned | Not Started |
-| M03.4 | 数据划分、泄漏与分布偏移<br>Data Splitting, Leakage and Distribution Shift | P0 | M03.2, M04.1 | A2 | Planned | Not Started |
-| M03.5 | 时间序列<br>Time Series | P1 | M03.2, M02.4 | A5 | Planned | Not Started |
-| M03.6 | 实验设计（DOE）<br>Design of Experiments | P1 | M02.4 | — | Planned | Not Started |
+| M03.1 | [数据获取与存储](notes/01-data-acquisition-storage.qmd) · [notebook](notebooks/01-data-acquisition-storage.ipynb)<br>Data Acquisition and Storage | P0 | — | — | Draft | Not Started |
+| M03.2 | [数据处理](notes/02-data-wrangling.qmd) · [notebook](notebooks/02-data-wrangling.ipynb)<br>Data Wrangling | P0 · FT | M03.1 | — | Draft | Not Started |
+| M03.3 | [探索性数据分析与可视化](notes/03-eda-visualization.qmd) · [notebook](notebooks/03-eda-visualization.ipynb)<br>Exploratory Data Analysis and Visualization | P0 | M03.2, M02.3 | — | Draft | Not Started |
+| M03.4 | [数据划分、泄漏与分布偏移](notes/04-splitting-leakage-shift.qmd) · [notebook](notebooks/04-splitting-leakage-shift.ipynb)<br>Data Splitting, Leakage and Distribution Shift | P0 | M03.2, M04.1 | A2 | Draft | Not Started |
+| M03.5 | [时间序列](notes/05-time-series.qmd) · [notebook](notebooks/05-time-series.ipynb)<br>Time Series | P1 | M03.2, M02.4 | A5 | Draft | Not Started |
+| M03.6 | [实验设计（DOE）](notes/06-design-of-experiments.qmd) · [notebook](notebooks/06-design-of-experiments.ipynb)<br>Design of Experiments | P1 | M02.4 | — | Draft | Not Started |
 
 **各章范围**
 
@@ -31,7 +31,7 @@
 
 <!-- AUTO:chapters:end -->
 
-讲义按即时建设原则逐章创建，最多领先学习进度两章；表中没有链接的章节尚未建设。
+六章讲义与实例 notebook 已按模块建设并逐章执行、渲染；建设状态与学习状态分别维护。数据存储实例需 `uv sync --extra perf --extra data` 安装声明的可选依赖。
 
 ## 毕业标准
 

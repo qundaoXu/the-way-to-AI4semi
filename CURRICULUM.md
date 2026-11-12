@@ -2,7 +2,7 @@
 
 <!-- 本文件由 scripts/sync_index.py 生成，请勿手工编辑。修改 curriculum.yaml 或讲义 frontmatter 后运行 `make sync`。 -->
 
-共 12 个模块、73 章，其中 6 章已建设（建设状态为 Draft 及以上）。只有已建设的章节带讲义链接。
+共 12 个模块、73 章，其中 33 章已建设（建设状态为 Draft 及以上）。只有已建设的章节带讲义链接。
 
 优先级：`P0` 核心必修，`P1` 主线进阶，`P2` 拓展，`P3` 长期专题，`Branch` 分支内容；`FT` 表示已熟悉者可快速浏览的章节（只看精要与实例 notebook）。两种状态的含义见 [学习指南](docs/learning-guide.md)。
 
@@ -24,14 +24,14 @@
 
 | ID | 章节 | 优先级 | 先修 | 锚点 | 建设状态 | 学习状态 |
 |---|---|---|---|---|---|---|
-| M02.1 | 线性代数<br>Linear Algebra | P0 | — | A4 | Planned | Not Started |
-| M02.2 | 微积分与矩阵微积分<br>Calculus and Matrix Calculus | P0 | M02.1 | A1 | Planned | Not Started |
-| M02.3 | 概率论与信息论<br>Probability and Information Theory | P0 | M02.2 | — | Planned | Not Started |
-| M02.4 | 数理统计<br>Mathematical Statistics | P0 | M02.3 | — | Planned | Not Started |
-| M02.5 | 最优化<br>Optimization | P0 | M02.1, M02.2 | — | Planned | Not Started |
-| M02.6 | 数值方法<br>Numerical Methods | P0 | M02.1, M02.2 | A1, A4 | Planned | Not Started |
-| M02.7 | 群论与表示论<br>Group Theory and Representation Theory | P1 | M02.1 | A6 | Planned | Not Started |
-| M02.8 | 随机过程与采样<br>Stochastic Processes and Sampling | P1 | M02.3, M02.6 | A6 | Planned | Not Started |
+| M02.1 | [线性代数](modules/02-mathematics-statistics/notes/01-linear-algebra.qmd) · [notebook](modules/02-mathematics-statistics/notebooks/01-linear-algebra.ipynb)<br>Linear Algebra | P0 | — | A4 | Draft | Not Started |
+| M02.2 | [微积分与矩阵微积分](modules/02-mathematics-statistics/notes/02-matrix-calculus.qmd) · [notebook](modules/02-mathematics-statistics/notebooks/02-matrix-calculus.ipynb)<br>Calculus and Matrix Calculus | P0 | M02.1 | A1 | Draft | Not Started |
+| M02.3 | [概率论与信息论](modules/02-mathematics-statistics/notes/03-probability-information.qmd) · [notebook](modules/02-mathematics-statistics/notebooks/03-probability-information.ipynb)<br>Probability and Information Theory | P0 | M02.2 | — | Draft | Not Started |
+| M02.4 | [数理统计](modules/02-mathematics-statistics/notes/04-mathematical-statistics.qmd) · [notebook](modules/02-mathematics-statistics/notebooks/04-mathematical-statistics.ipynb)<br>Mathematical Statistics | P0 | M02.3 | — | Draft | Not Started |
+| M02.5 | [最优化](modules/02-mathematics-statistics/notes/05-optimization.qmd) · [notebook](modules/02-mathematics-statistics/notebooks/05-optimization.ipynb)<br>Optimization | P0 | M02.1, M02.2 | — | Draft | Not Started |
+| M02.6 | [数值方法](modules/02-mathematics-statistics/notes/06-numerical-methods.qmd) · [notebook](modules/02-mathematics-statistics/notebooks/06-numerical-methods.ipynb)<br>Numerical Methods | P0 | M02.1, M02.2 | A1, A4 | Draft | Not Started |
+| M02.7 | [群论与表示论](modules/02-mathematics-statistics/notes/07-group-representation-theory.qmd) · [notebook](modules/02-mathematics-statistics/notebooks/07-group-representation-theory.ipynb)<br>Group Theory and Representation Theory | P1 | M02.1 | A6 | Draft | Not Started |
+| M02.8 | [随机过程与采样](modules/02-mathematics-statistics/notes/08-stochastic-processes-sampling.qmd) · [notebook](modules/02-mathematics-statistics/notebooks/08-stochastic-processes-sampling.ipynb)<br>Stochastic Processes and Sampling | P1 | M02.3, M02.6 | A6 | Draft | Not Started |
 
 ## M03 数据科学（Data Science）
 
@@ -39,12 +39,12 @@
 
 | ID | 章节 | 优先级 | 先修 | 锚点 | 建设状态 | 学习状态 |
 |---|---|---|---|---|---|---|
-| M03.1 | 数据获取与存储<br>Data Acquisition and Storage | P0 | — | — | Planned | Not Started |
-| M03.2 | 数据处理<br>Data Wrangling | P0 · FT | M03.1 | — | Planned | Not Started |
-| M03.3 | 探索性数据分析与可视化<br>Exploratory Data Analysis and Visualization | P0 | M03.2, M02.3 | — | Planned | Not Started |
-| M03.4 | 数据划分、泄漏与分布偏移<br>Data Splitting, Leakage and Distribution Shift | P0 | M03.2, M04.1 | A2 | Planned | Not Started |
-| M03.5 | 时间序列<br>Time Series | P1 | M03.2, M02.4 | A5 | Planned | Not Started |
-| M03.6 | 实验设计（DOE）<br>Design of Experiments | P1 | M02.4 | — | Planned | Not Started |
+| M03.1 | [数据获取与存储](modules/03-data-science/notes/01-data-acquisition-storage.qmd) · [notebook](modules/03-data-science/notebooks/01-data-acquisition-storage.ipynb)<br>Data Acquisition and Storage | P0 | — | — | Draft | Not Started |
+| M03.2 | [数据处理](modules/03-data-science/notes/02-data-wrangling.qmd) · [notebook](modules/03-data-science/notebooks/02-data-wrangling.ipynb)<br>Data Wrangling | P0 · FT | M03.1 | — | Draft | Not Started |
+| M03.3 | [探索性数据分析与可视化](modules/03-data-science/notes/03-eda-visualization.qmd) · [notebook](modules/03-data-science/notebooks/03-eda-visualization.ipynb)<br>Exploratory Data Analysis and Visualization | P0 | M03.2, M02.3 | — | Draft | Not Started |
+| M03.4 | [数据划分、泄漏与分布偏移](modules/03-data-science/notes/04-splitting-leakage-shift.qmd) · [notebook](modules/03-data-science/notebooks/04-splitting-leakage-shift.ipynb)<br>Data Splitting, Leakage and Distribution Shift | P0 | M03.2, M04.1 | A2 | Draft | Not Started |
+| M03.5 | [时间序列](modules/03-data-science/notes/05-time-series.qmd) · [notebook](modules/03-data-science/notebooks/05-time-series.ipynb)<br>Time Series | P1 | M03.2, M02.4 | A5 | Draft | Not Started |
+| M03.6 | [实验设计（DOE）](modules/03-data-science/notes/06-design-of-experiments.qmd) · [notebook](modules/03-data-science/notebooks/06-design-of-experiments.ipynb)<br>Design of Experiments | P1 | M02.4 | — | Draft | Not Started |
 
 ## M04 传统机器学习（Classical Machine Learning）
 
@@ -52,14 +52,14 @@
 
 | ID | 章节 | 优先级 | 先修 | 锚点 | 建设状态 | 学习状态 |
 |---|---|---|---|---|---|---|
-| M04.1 | 统计学习基础<br>Statistical Learning Foundations | P0 | M02.1, M02.3 | — | Planned | Not Started |
+| M04.1 | [统计学习基础](modules/04-classical-machine-learning/notes/01-statistical-learning.qmd) · [notebook](modules/04-classical-machine-learning/notebooks/01-statistical-learning.ipynb)<br>Statistical Learning Foundations | P0 | M02.1, M02.3 | — | Draft | Not Started |
 | M04.2 | [线性模型](modules/04-classical-machine-learning/notes/02-linear-models.qmd) · [notebook](modules/04-classical-machine-learning/notebooks/02-linear-models.ipynb)<br>Linear Models | P0 | M02.1, M02.2, M02.4 | — | Draft | Not Started |
-| M04.3 | 核方法与高斯过程<br>Kernel Methods and Gaussian Processes | P0 | M04.2, M02.3 | — | Planned | Not Started |
-| M04.4 | 树模型与集成学习<br>Trees and Ensemble Learning | P0 | M04.1 | — | Planned | Not Started |
-| M04.5 | 无监督学习<br>Unsupervised Learning | P0 | M02.1, M02.3 | — | Planned | Not Started |
-| M04.6 | 异常检测<br>Anomaly Detection | P1 | M04.4, M04.5 | — | Planned | Not Started |
-| M04.7 | 模型评价与解释<br>Model Evaluation and Interpretation | P0 | M04.1, M04.2 | A3 | Planned | Not Started |
-| M04.8 | ML 研究方法论<br>ML Research Methodology | P0 | M04.7, M02.4 | A3 | Planned | Not Started |
+| M04.3 | [核方法与高斯过程](modules/04-classical-machine-learning/notes/03-kernels-gaussian-processes.qmd) · [notebook](modules/04-classical-machine-learning/notebooks/03-kernels-gaussian-processes.ipynb)<br>Kernel Methods and Gaussian Processes | P0 | M04.2, M02.3 | — | Draft | Not Started |
+| M04.4 | [树模型与集成学习](modules/04-classical-machine-learning/notes/04-trees-ensembles.qmd) · [notebook](modules/04-classical-machine-learning/notebooks/04-trees-ensembles.ipynb)<br>Trees and Ensemble Learning | P0 | M04.1 | — | Draft | Not Started |
+| M04.5 | [无监督学习](modules/04-classical-machine-learning/notes/05-unsupervised-learning.qmd) · [notebook](modules/04-classical-machine-learning/notebooks/05-unsupervised-learning.ipynb)<br>Unsupervised Learning | P0 | M02.1, M02.3 | — | Draft | Not Started |
+| M04.6 | [异常检测](modules/04-classical-machine-learning/notes/06-anomaly-detection.qmd) · [notebook](modules/04-classical-machine-learning/notebooks/06-anomaly-detection.ipynb)<br>Anomaly Detection | P1 | M04.4, M04.5 | — | Draft | Not Started |
+| M04.7 | [模型评价与解释](modules/04-classical-machine-learning/notes/07-evaluation-interpretation.qmd) · [notebook](modules/04-classical-machine-learning/notebooks/07-evaluation-interpretation.ipynb)<br>Model Evaluation and Interpretation | P0 | M04.1, M04.2 | A3 | Draft | Not Started |
+| M04.8 | [ML 研究方法论](modules/04-classical-machine-learning/notes/08-research-methodology.qmd) · [notebook](modules/04-classical-machine-learning/notebooks/08-research-methodology.ipynb)<br>ML Research Methodology | P0 | M04.7, M02.4 | A3 | Draft | Not Started |
 
 ## M05 深度学习（Deep Learning）
 
@@ -67,12 +67,12 @@
 
 | ID | 章节 | 优先级 | 先修 | 锚点 | 建设状态 | 学习状态 |
 |---|---|---|---|---|---|---|
-| M05.1 | 神经网络基础<br>Neural Network Fundamentals | P0 | M02.2, M04.2 | — | Planned | Not Started |
-| M05.2 | 自动微分<br>Automatic Differentiation | P0 | M02.2, M05.1 | A1 | Planned | Not Started |
-| M05.3 | PyTorch 工程基础<br>PyTorch Engineering Basics | P0 · FT | M01.1, M05.1 | — | Planned | Not Started |
-| M05.4 | 训练与优化技巧<br>Training and Optimization Techniques | P0 | M05.3, M02.5 | — | Planned | Not Started |
-| M05.5 | 卷积网络与视觉<br>Convolutional Networks and Vision | P1 | M05.4 | — | Planned | Not Started |
-| M05.6 | 序列模型<br>Sequence Models | P2 | M05.4 | — | Planned | Not Started |
+| M05.1 | [神经网络基础](modules/05-deep-learning/notes/01-neural-network-fundamentals.qmd) · [notebook](modules/05-deep-learning/notebooks/01-neural-network-fundamentals.ipynb)<br>Neural Network Fundamentals | P0 | M02.2, M04.2 | — | Draft | Not Started |
+| M05.2 | [自动微分](modules/05-deep-learning/notes/02-automatic-differentiation.qmd) · [notebook](modules/05-deep-learning/notebooks/02-automatic-differentiation.ipynb)<br>Automatic Differentiation | P0 | M02.2, M05.1 | A1 | Draft | Not Started |
+| M05.3 | [PyTorch 工程基础](modules/05-deep-learning/notes/03-pytorch-engineering.qmd) · [notebook](modules/05-deep-learning/notebooks/03-pytorch-engineering.ipynb)<br>PyTorch Engineering Basics | P0 · FT | M01.1, M05.1 | — | Draft | Not Started |
+| M05.4 | [训练与优化技巧](modules/05-deep-learning/notes/04-training-techniques.qmd) · [notebook](modules/05-deep-learning/notebooks/04-training-techniques.ipynb)<br>Training and Optimization Techniques | P0 | M05.3, M02.5 | — | Draft | Not Started |
+| M05.5 | [卷积网络与视觉](modules/05-deep-learning/notes/05-convolutional-networks.qmd) · [notebook](modules/05-deep-learning/notebooks/05-convolutional-networks.ipynb)<br>Convolutional Networks and Vision | P1 | M05.4 | — | Draft | Not Started |
+| M05.6 | [序列模型](modules/05-deep-learning/notes/06-sequence-models.qmd) · [notebook](modules/05-deep-learning/notebooks/06-sequence-models.ipynb)<br>Sequence Models | P2 | M05.4 | — | Draft | Not Started |
 
 ## M06 现代 AI 架构（Advanced AI Architectures）
 

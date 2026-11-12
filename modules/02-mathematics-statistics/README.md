@@ -13,14 +13,14 @@
 
 | ID | 章节 | 优先级 | 先修 | 锚点 | 建设状态 | 学习状态 |
 |---|---|---|---|---|---|---|
-| M02.1 | 线性代数<br>Linear Algebra | P0 | — | A4 | Planned | Not Started |
-| M02.2 | 微积分与矩阵微积分<br>Calculus and Matrix Calculus | P0 | M02.1 | A1 | Planned | Not Started |
-| M02.3 | 概率论与信息论<br>Probability and Information Theory | P0 | M02.2 | — | Planned | Not Started |
-| M02.4 | 数理统计<br>Mathematical Statistics | P0 | M02.3 | — | Planned | Not Started |
-| M02.5 | 最优化<br>Optimization | P0 | M02.1, M02.2 | — | Planned | Not Started |
-| M02.6 | 数值方法<br>Numerical Methods | P0 | M02.1, M02.2 | A1, A4 | Planned | Not Started |
-| M02.7 | 群论与表示论<br>Group Theory and Representation Theory | P1 | M02.1 | A6 | Planned | Not Started |
-| M02.8 | 随机过程与采样<br>Stochastic Processes and Sampling | P1 | M02.3, M02.6 | A6 | Planned | Not Started |
+| M02.1 | [线性代数](notes/01-linear-algebra.qmd) · [notebook](notebooks/01-linear-algebra.ipynb)<br>Linear Algebra | P0 | — | A4 | Draft | Not Started |
+| M02.2 | [微积分与矩阵微积分](notes/02-matrix-calculus.qmd) · [notebook](notebooks/02-matrix-calculus.ipynb)<br>Calculus and Matrix Calculus | P0 | M02.1 | A1 | Draft | Not Started |
+| M02.3 | [概率论与信息论](notes/03-probability-information.qmd) · [notebook](notebooks/03-probability-information.ipynb)<br>Probability and Information Theory | P0 | M02.2 | — | Draft | Not Started |
+| M02.4 | [数理统计](notes/04-mathematical-statistics.qmd) · [notebook](notebooks/04-mathematical-statistics.ipynb)<br>Mathematical Statistics | P0 | M02.3 | — | Draft | Not Started |
+| M02.5 | [最优化](notes/05-optimization.qmd) · [notebook](notebooks/05-optimization.ipynb)<br>Optimization | P0 | M02.1, M02.2 | — | Draft | Not Started |
+| M02.6 | [数值方法](notes/06-numerical-methods.qmd) · [notebook](notebooks/06-numerical-methods.ipynb)<br>Numerical Methods | P0 | M02.1, M02.2 | A1, A4 | Draft | Not Started |
+| M02.7 | [群论与表示论](notes/07-group-representation-theory.qmd) · [notebook](notebooks/07-group-representation-theory.ipynb)<br>Group Theory and Representation Theory | P1 | M02.1 | A6 | Draft | Not Started |
+| M02.8 | [随机过程与采样](notes/08-stochastic-processes-sampling.qmd) · [notebook](notebooks/08-stochastic-processes-sampling.ipynb)<br>Stochastic Processes and Sampling | P1 | M02.3, M02.6 | A6 | Draft | Not Started |
 
 **各章范围**
 
@@ -35,7 +35,7 @@
 
 <!-- AUTO:chapters:end -->
 
-讲义按即时建设原则逐章创建，最多领先学习进度两章；表中没有链接的章节尚未建设。
+本模块八章均已交付讲义和带输出的实例 notebook。按模块逐章建设、逐章验证；学习状态由学习者本人维护。
 
 ## 毕业标准
 

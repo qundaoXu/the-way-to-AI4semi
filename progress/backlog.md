@@ -11,15 +11,31 @@
 
 按 Path B 的顺序：
 
-- [ ] Module 02 数学、统计与最优化（M02.1 建成后，把 M04.2 讲义第 2 节的前置说明改为链接）
-- [ ] Module 04 其余章节（M04.1、M04.3–M04.8）
-- [ ] Module 03、Module 05
+M01–M05 的讲义与实例 notebook 已建设为 Draft；后续模块按学习者指定范围推进。
+
+## Module 05 的后续（2026-11-11 建设为 Draft）
+
+- [ ] 学习者过目，或独立 VERIFY 核查；六章讲义与 notebook 已逐章执行和渲染，CPU 核验了自动微分、LJ 力/应力、NVE 步长收敛与完整 epoch 边界续训。
+- [ ] Linux CI、CUDA/多进程/分布式续训尚未在本机运行；CNN 使用合成晶圆模式，真实 WM-811K 综合实验留给后续项目。
+
+## Module 04 的后续（2026-11-11 建设为 Draft）
+
+- [ ] 学习者过目，或独立 VERIFY 核查；八章讲义与 notebook 已执行和渲染。原有 M04.2 练习机制保留，真实 benchmark 毕业产出由学习者完成。
+
+## Module 03 的后续（2026-11-11 建设为 Draft）
+
+- [ ] 学习者过目，或独立 VERIFY 核查；六章讲义与 notebook 已逐章执行和渲染，合成实例用于隔离机制，真实公开数据的毕业产出由学习者完成。
+
+## Module 02 的后续（2026-11-11 建设为 Draft）
+
+- [ ] 学习者过目后，或独立 VERIFY 核查后，评估建设状态；八章讲义与 notebook 已逐章执行和渲染。
+- [ ] Owen 在线教材作者站本次访问超时，后续复查 M02.8 的阅读链接。
 
 ## Module 01 的后续（2026-11-11 建设为 Draft）
 
 - [ ] 学习者过目后，或 VERIFY 模式核查后，把 M01.1–M01.5 的建设状态提升到 `Reviewed`。
-- [ ] 核实标注 `[待核实]` 的资料：Fluent Python 第 2 版出版信息、Matula 1968（M01.1）；CLRS 第 4 版第 3 章标题、Allen & Tildesley 邻居表所在小节、Franzblau 1991（M01.2）；Pro Git 出版社（M01.3）；Goldberg 1991 卷期页码（M01.4）；*High Performance Python* 第 2 版章节标题（M01.5）。
-- [ ] 核实正文中的几处定性说法：PyTorch `torch.load` 默认 `weights_only=True` 的起始版本（M01.1）；ASE `neighbor_list("ijD", ...)` 的返回形式（M01.5，ASE 未安装）；GPU MD 代码的混合精度模式（M01.4）。
+- [ ] 核实标注 `[待核实]` 的资料：Fluent Python 第 2 版出版信息、Matula 1968（M01.1）；CLRS 第 4 版第 3 章标题、Allen & Tildesley 邻居表所在小节（M01.2）；Goldberg 1991 卷期页码（M01.4）；*High Performance Python* 第 2 版章节标题（M01.5）。
+- [ ] 核实正文中的几处定性说法：GPU MD 代码的混合精度模式（M01.4）。
 - [ ] notebook 的计时结果来自 Apple M4（macOS），M01.3 的 shell/Git 输出未在 Linux 上验证。
 
 ## 试点章节 M04.2 的后续
@@ -43,6 +59,6 @@
 ## 以后再做
 
 - 发布构建（蓝图第 6.8 节，Phase 3 之后）：`theme/semiai.lua` 已支持 `--profile publish` 时剥离批注和本机路径，但还没有建立排除 `progress/` 的 profile 配置文件。
-- `pyproject.toml` 的 optional extras（`dl`、`geometric`、`atomistic`、`boosting`、`mlops`）在首次需要的章节建设时再定义。
-- `semiai.testing` 的等变性检验与随机旋转生成，在 M02.7 建设时加入。
+- `pyproject.toml` 的 optional extras（`geometric`、`atomistic`、`boosting`、`mlops`）在首次需要的章节建设时再定义。
+- 多章实际需要时，再将 notebook 中的局部对称性核验提炼为公共工具；当前 M02.7 已在实例中核验。
 - 第 3 个月末评估学习环境的摩擦点，决定是否需要增量工具（蓝图第 6.9 节）。

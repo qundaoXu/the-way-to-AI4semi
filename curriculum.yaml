@@ -105,7 +105,7 @@ modules:
         prereqs: []
         anchors: [A4]
         note: notes/01-linear-algebra.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 向量空间、子空间与正交投影；特征分解；SVD 与低秩近似；PCA 的两种推导（最大方差与最小重构误差）；正定矩阵；矩阵范数与条件数。
       - id: M02.2
         title: Calculus and Matrix Calculus
@@ -115,7 +115,7 @@ modules:
         prereqs: [M02.1]
         anchors: [A1]
         note: notes/02-matrix-calculus.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 梯度、Jacobian、Hessian；矩阵形式的链式法则；常用矩阵求导结果；Taylor 展开；Lagrange 乘子。
       - id: M02.3
         title: Probability and Information Theory
@@ -125,7 +125,7 @@ modules:
         prereqs: [M02.2]
         anchors: []
         note: notes/03-probability-information.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 随机变量与分布；条件概率与贝叶斯定理；多元高斯分布的边缘与条件分布（高斯过程的基础）；期望、方差、协方差；变量变换公式（normalizing flow 的基础）；熵、交叉熵、KL 散度、互信息。
       - id: M02.4
         title: Mathematical Statistics
@@ -135,7 +135,7 @@ modules:
         prereqs: [M02.3]
         anchors: []
         note: notes/04-mathematical-statistics.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 点估计、MLE、MAP；估计量的偏差与方差；置信区间；假设检验与多重比较校正；Bootstrap；贝叶斯推断入门。
       - id: M02.5
         title: Optimization
@@ -145,7 +145,7 @@ modules:
         prereqs: [M02.1, M02.2]
         anchors: []
         note: notes/05-optimization.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 凸集与凸函数；梯度下降与 SGD 的收敛直觉；Momentum、Adam、AdamW；二阶与拟牛顿方法（L-BFGS，及其在结构优化中的应用）；约束优化与 KKT 条件。贝叶斯优化归属 M06.5。
       - id: M02.6
         title: Numerical Methods
@@ -155,7 +155,7 @@ modules:
         prereqs: [M02.1, M02.2]
         anchors: [A1, A4]
         note: notes/06-numerical-methods.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 浮点误差、条件数与数值稳定性；线性方程组（LU、Cholesky、共轭梯度）；稀疏矩阵存储与运算；迭代特征值算法（幂迭代、Lanczos）；插值与数值积分；ODE 积分器（Euler、Runge–Kutta、Verlet 与辛积分的能量守恒性质）；PDE 离散入门（有限差分、有限元的基本思想）。
       - id: M02.7
         title: Group Theory and Representation Theory
@@ -165,7 +165,7 @@ modules:
         prereqs: [M02.1]
         anchors: [A6]
         note: notes/07-group-representation-theory.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 群、子群、陪集；对称群、SO(3)、O(3)、E(3)；群表示与不可约表示；球谐函数；Wigner-D 矩阵；张量积与 Clebsch–Gordan 分解；晶体点群与空间群简介。本章是 M06.3 的直接前置。
       - id: M02.8
         title: Stochastic Processes and Sampling
@@ -175,7 +175,7 @@ modules:
         prereqs: [M02.3, M02.6]
         anchors: [A6]
         note: notes/08-stochastic-processes-sampling.qmd
-        build_status: Planned
+        build_status: Draft
         scope: Markov 链与平稳分布；MCMC（Metropolis–Hastings）；Langevin 动力学与 Fokker–Planck 方程；随机微分方程入门；重要性采样。本章是连接分子动力学采样与扩散模型（M06.4）的桥梁。
 
   # ---------------------------------------------------------------------------
@@ -195,7 +195,7 @@ modules:
         prereqs: []
         anchors: []
         note: notes/01-data-acquisition-storage.qmd
-        build_status: Planned
+        build_status: Draft
         scope: CSV、JSON、HDF5、Parquet；原子结构数据格式（extxyz、ASE database、LMDB）；SQL（SELECT、JOIN、GROUP BY、窗口函数）；数据库基础（P1）。
       - id: M03.2
         title: Data Wrangling
@@ -205,7 +205,7 @@ modules:
         prereqs: [M03.1]
         anchors: []
         note: notes/02-data-wrangling.qmd
-        build_status: Planned
+        build_status: Draft
         scope: pandas 核心操作与性能；tidy data；缺失值与异常值；缩放与编码。FT 仅适用于部分内容。
       - id: M03.3
         title: Exploratory Data Analysis and Visualization
@@ -215,7 +215,7 @@ modules:
         prereqs: [M03.2, M02.3]
         anchors: []
         note: notes/03-eda-visualization.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 描述性统计；分布分析；Pearson、Spearman 相关与互信息；可视化原则与常见误导；降维可视化（算法细节归属 M04.5）。
       - id: M03.4
         title: Data Splitting, Leakage and Distribution Shift
@@ -225,7 +225,7 @@ modules:
         prereqs: [M03.2, M04.1]
         anchors: [A2]
         note: notes/04-splitting-leakage-shift.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 随机划分、分组划分、时间划分、结构相似性划分；MD 轨迹相邻帧高度相关导致的泄漏；协变量偏移、标签偏移、概念偏移；训练集与部署分布不一致的诊断方法。泄漏问题的主要归属章节。
       - id: M03.5
         title: Time Series
@@ -235,7 +235,7 @@ modules:
         prereqs: [M03.2, M02.4]
         anchors: [A5]
         note: notes/05-time-series.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 平稳性与自相关；滑动窗口特征；趋势与季节性；变化点检测；非均匀与对数时间采样下的分析方法。
       - id: M03.6
         title: Design of Experiments
@@ -245,7 +245,7 @@ modules:
         prereqs: [M02.4]
         anchors: []
         note: notes/06-design-of-experiments.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 因子设计与部分因子设计；响应面方法；拉丁超立方采样；DOE 与主动学习、贝叶斯优化的关系。DOE 的主要归属章节。
 
   # ---------------------------------------------------------------------------
@@ -265,7 +265,7 @@ modules:
         prereqs: [M02.1, M02.3]
         anchors: []
         note: notes/01-statistical-learning.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 经验风险最小化；偏差–方差分解；过拟合与欠拟合；模型复杂度与泛化的直觉；正则化；No Free Lunch。
       - id: M04.2
         title: Linear Models
@@ -285,7 +285,7 @@ modules:
         prereqs: [M04.2, M02.3]
         anchors: []
         note: notes/03-kernels-gaussian-processes.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 核技巧与再生核的直觉；核岭回归；SVM；高斯过程回归（后验推导、超参数学习、计算复杂度）；与 SOAP-GAP 类 MLIP 的联系。高斯过程的主要归属章节。
       - id: M04.4
         title: Trees and Ensemble Learning
@@ -295,7 +295,7 @@ modules:
         prereqs: [M04.1]
         anchors: []
         note: notes/04-trees-ensembles.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 决策树；Bagging 与随机森林；Gradient Boosting；XGBoost、LightGBM 的工程优化。
       - id: M04.5
         title: Unsupervised Learning
@@ -305,7 +305,7 @@ modules:
         prereqs: [M02.1, M02.3]
         anchors: []
         note: notes/05-unsupervised-learning.qmd
-        build_status: Planned
+        build_status: Draft
         scope: K-means；GMM 与 EM 算法；层次聚类；DBSCAN；PCA、t-SNE、UMAP 及其可视化陷阱。
       - id: M04.6
         title: Anomaly Detection
@@ -315,7 +315,7 @@ modules:
         prereqs: [M04.4, M04.5]
         anchors: []
         note: notes/06-anomaly-detection.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 统计方法（Z-score、IQR）；Isolation Forest；One-Class SVM；LOF；异常检测的评价难点。
       - id: M04.7
         title: Model Evaluation and Interpretation
@@ -325,7 +325,7 @@ modules:
         prereqs: [M04.1, M04.2]
         anchors: [A3]
         note: notes/07-evaluation-interpretation.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 回归与分类指标；交叉验证的多种形式；超参数搜索；概率校准；特征重要性；SHAP 及其局限。不确定性量化归属 M06.5。
       - id: M04.8
         title: ML Research Methodology
@@ -335,7 +335,7 @@ modules:
         prereqs: [M04.7, M02.4]
         anchors: [A3]
         note: notes/08-research-methodology.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 基线选择；消融实验；多随机种子与置信区间；模型间的统计显著性比较；benchmark 设计与“刷榜”问题；代理指标与最终目标不一致的问题（如“低 RMSE ≠ 可用的势”）；如何阅读与复现论文。研究者必修。
 
   # ---------------------------------------------------------------------------
@@ -355,7 +355,7 @@ modules:
         prereqs: [M02.2, M04.2]
         anchors: []
         note: notes/01-neural-network-fundamentals.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 感知机与 MLP；激活函数；损失函数与最大似然的关系；反向传播；梯度消失与爆炸；初始化。
       - id: M05.2
         title: Automatic Differentiation
@@ -365,7 +365,7 @@ modules:
         prereqs: [M02.2, M05.1]
         anchors: [A1]
         note: notes/02-automatic-differentiation.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 计算图；前向模式与反向模式；向量–Jacobian 积与 Jacobian–向量积；高阶导数与 create_graph；力作为能量的负梯度、应力作为能量对应变的导数；JAX 的函数式自动微分简介（P2）。自动微分的主要归属章节。
       - id: M05.3
         title: PyTorch Engineering Basics
@@ -375,7 +375,7 @@ modules:
         prereqs: [M01.1, M05.1]
         anchors: []
         note: notes/03-pytorch-engineering.qmd
-        build_status: Planned
+        build_status: Draft
         scope: Tensor 与设备管理；nn.Module；Dataset 与 DataLoader；手写训练循环；checkpoint 与断点续训；随机种子与确定性。FT 仅适用于部分内容。
       - id: M05.4
         title: Training and Optimization Techniques
@@ -385,7 +385,7 @@ modules:
         prereqs: [M05.3, M02.5]
         anchors: []
         note: notes/04-training-techniques.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 优化器与学习率调度；归一化层；正则化与 Dropout；混合精度；梯度裁剪；参数 EMA；训练调试清单（loss 不下降、NaN、过拟合的排查顺序）。
       - id: M05.5
         title: Convolutional Networks and Vision
@@ -395,7 +395,7 @@ modules:
         prereqs: [M05.4]
         anchors: []
         note: notes/05-convolutional-networks.qmd
-        build_status: Planned
+        build_status: Draft
         scope: 卷积与感受野；ResNet；数据增强与迁移学习；在晶圆图与显微图像上的应用。
       - id: M05.6
         title: Sequence Models
@@ -405,7 +405,7 @@ modules:
         prereqs: [M05.4]
         anchors: []
         note: notes/06-sequence-models.qmd
-        build_status: Planned
+        build_status: Draft
         scope: RNN、LSTM、GRU 的结构与局限，作为理解 Transformer 的历史背景。Attention 归属 M06.1。
 
   # ---------------------------------------------------------------------------

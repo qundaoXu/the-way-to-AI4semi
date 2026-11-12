@@ -13,12 +13,12 @@
 
 | ID | 章节 | 优先级 | 先修 | 锚点 | 建设状态 | 学习状态 |
 |---|---|---|---|---|---|---|
-| M05.1 | 神经网络基础<br>Neural Network Fundamentals | P0 | M02.2, M04.2 | — | Planned | Not Started |
-| M05.2 | 自动微分<br>Automatic Differentiation | P0 | M02.2, M05.1 | A1 | Planned | Not Started |
-| M05.3 | PyTorch 工程基础<br>PyTorch Engineering Basics | P0 · FT | M01.1, M05.1 | — | Planned | Not Started |
-| M05.4 | 训练与优化技巧<br>Training and Optimization Techniques | P0 | M05.3, M02.5 | — | Planned | Not Started |
-| M05.5 | 卷积网络与视觉<br>Convolutional Networks and Vision | P1 | M05.4 | — | Planned | Not Started |
-| M05.6 | 序列模型<br>Sequence Models | P2 | M05.4 | — | Planned | Not Started |
+| M05.1 | [神经网络基础](notes/01-neural-network-fundamentals.qmd) · [notebook](notebooks/01-neural-network-fundamentals.ipynb)<br>Neural Network Fundamentals | P0 | M02.2, M04.2 | — | Draft | Not Started |
+| M05.2 | [自动微分](notes/02-automatic-differentiation.qmd) · [notebook](notebooks/02-automatic-differentiation.ipynb)<br>Automatic Differentiation | P0 | M02.2, M05.1 | A1 | Draft | Not Started |
+| M05.3 | [PyTorch 工程基础](notes/03-pytorch-engineering.qmd) · [notebook](notebooks/03-pytorch-engineering.ipynb)<br>PyTorch Engineering Basics | P0 · FT | M01.1, M05.1 | — | Draft | Not Started |
+| M05.4 | [训练与优化技巧](notes/04-training-techniques.qmd) · [notebook](notebooks/04-training-techniques.ipynb)<br>Training and Optimization Techniques | P0 | M05.3, M02.5 | — | Draft | Not Started |
+| M05.5 | [卷积网络与视觉](notes/05-convolutional-networks.qmd) · [notebook](notebooks/05-convolutional-networks.ipynb)<br>Convolutional Networks and Vision | P1 | M05.4 | — | Draft | Not Started |
+| M05.6 | [序列模型](notes/06-sequence-models.qmd) · [notebook](notebooks/06-sequence-models.ipynb)<br>Sequence Models | P2 | M05.4 | — | Draft | Not Started |
 
 **各章范围**
 
@@ -31,7 +31,7 @@
 
 <!-- AUTO:chapters:end -->
 
-讲义按即时建设原则逐章创建，最多领先学习进度两章；表中没有链接的章节尚未建设。
+六章讲义与实例 notebook 已按模块建设并逐章执行、渲染，实例均显式使用 CPU。先运行 `uv sync --extra perf --extra data --extra dl` 安装已声明依赖。建设完成不改变学习状态。
 
 ## 毕业标准
 

@@ -13,14 +13,14 @@
 
 | ID | 章节 | 优先级 | 先修 | 锚点 | 建设状态 | 学习状态 |
 |---|---|---|---|---|---|---|
-| M04.1 | 统计学习基础<br>Statistical Learning Foundations | P0 | M02.1, M02.3 | — | Planned | Not Started |
+| M04.1 | [统计学习基础](notes/01-statistical-learning.qmd) · [notebook](notebooks/01-statistical-learning.ipynb)<br>Statistical Learning Foundations | P0 | M02.1, M02.3 | — | Draft | Not Started |
 | M04.2 | [线性模型](notes/02-linear-models.qmd) · [notebook](notebooks/02-linear-models.ipynb)<br>Linear Models | P0 | M02.1, M02.2, M02.4 | — | Draft | Not Started |
-| M04.3 | 核方法与高斯过程<br>Kernel Methods and Gaussian Processes | P0 | M04.2, M02.3 | — | Planned | Not Started |
-| M04.4 | 树模型与集成学习<br>Trees and Ensemble Learning | P0 | M04.1 | — | Planned | Not Started |
-| M04.5 | 无监督学习<br>Unsupervised Learning | P0 | M02.1, M02.3 | — | Planned | Not Started |
-| M04.6 | 异常检测<br>Anomaly Detection | P1 | M04.4, M04.5 | — | Planned | Not Started |
-| M04.7 | 模型评价与解释<br>Model Evaluation and Interpretation | P0 | M04.1, M04.2 | A3 | Planned | Not Started |
-| M04.8 | ML 研究方法论<br>ML Research Methodology | P0 | M04.7, M02.4 | A3 | Planned | Not Started |
+| M04.3 | [核方法与高斯过程](notes/03-kernels-gaussian-processes.qmd) · [notebook](notebooks/03-kernels-gaussian-processes.ipynb)<br>Kernel Methods and Gaussian Processes | P0 | M04.2, M02.3 | — | Draft | Not Started |
+| M04.4 | [树模型与集成学习](notes/04-trees-ensembles.qmd) · [notebook](notebooks/04-trees-ensembles.ipynb)<br>Trees and Ensemble Learning | P0 | M04.1 | — | Draft | Not Started |
+| M04.5 | [无监督学习](notes/05-unsupervised-learning.qmd) · [notebook](notebooks/05-unsupervised-learning.ipynb)<br>Unsupervised Learning | P0 | M02.1, M02.3 | — | Draft | Not Started |
+| M04.6 | [异常检测](notes/06-anomaly-detection.qmd) · [notebook](notebooks/06-anomaly-detection.ipynb)<br>Anomaly Detection | P1 | M04.4, M04.5 | — | Draft | Not Started |
+| M04.7 | [模型评价与解释](notes/07-evaluation-interpretation.qmd) · [notebook](notebooks/07-evaluation-interpretation.ipynb)<br>Model Evaluation and Interpretation | P0 | M04.1, M04.2 | A3 | Draft | Not Started |
+| M04.8 | [ML 研究方法论](notes/08-research-methodology.qmd) · [notebook](notebooks/08-research-methodology.ipynb)<br>ML Research Methodology | P0 | M04.7, M02.4 | A3 | Draft | Not Started |
 
 **各章范围**
 
@@ -35,7 +35,7 @@
 
 <!-- AUTO:chapters:end -->
 
-讲义按即时建设原则逐章创建，最多领先学习进度两章；表中没有链接的章节尚未建设。
+八章讲义与实例 notebook 已按模块建设并逐章执行、渲染；M04.2 原有练习、解答和测试继续保留。建设状态与学习状态分别维护。
 
 ## 练习
 

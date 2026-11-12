@@ -2,7 +2,7 @@
 
 <!-- 本文件由 scripts/sync_index.py 生成，请勿手工编辑。修改 curriculum.yaml 或讲义 frontmatter 后运行 `make sync`。 -->
 
-共 73 章，已建设 6 章。学习状态：Not Started 73、Reading 0、Practicing 0、Reviewed 0、Mastered 0。
+共 73 章，已建设 33 章。学习状态：Not Started 73、Reading 0、Practicing 0、Reviewed 0、Mastered 0。
 
 勾选表示该章已达到 `Mastered`。学习状态记录在各讲义的 frontmatter 中，用 `make status ID=M04.2 S=Practicing` 修改。
 
@@ -16,43 +16,43 @@
 
 ## M02 数学、统计与最优化
 
-- [ ] **M02.1** 线性代数 `P0` · 建设：Planned · 学习：Not Started
-- [ ] **M02.2** 微积分与矩阵微积分 `P0` · 建设：Planned · 学习：Not Started
-- [ ] **M02.3** 概率论与信息论 `P0` · 建设：Planned · 学习：Not Started
-- [ ] **M02.4** 数理统计 `P0` · 建设：Planned · 学习：Not Started
-- [ ] **M02.5** 最优化 `P0` · 建设：Planned · 学习：Not Started
-- [ ] **M02.6** 数值方法 `P0` · 建设：Planned · 学习：Not Started
-- [ ] **M02.7** 群论与表示论 `P1` · 建设：Planned · 学习：Not Started
-- [ ] **M02.8** 随机过程与采样 `P1` · 建设：Planned · 学习：Not Started
+- [ ] **M02.1** [线性代数](../modules/02-mathematics-statistics/notes/01-linear-algebra.qmd) · [notebook](../modules/02-mathematics-statistics/notebooks/01-linear-algebra.ipynb) `P0` · 建设：Draft · 学习：Not Started
+- [ ] **M02.2** [微积分与矩阵微积分](../modules/02-mathematics-statistics/notes/02-matrix-calculus.qmd) · [notebook](../modules/02-mathematics-statistics/notebooks/02-matrix-calculus.ipynb) `P0` · 建设：Draft · 学习：Not Started
+- [ ] **M02.3** [概率论与信息论](../modules/02-mathematics-statistics/notes/03-probability-information.qmd) · [notebook](../modules/02-mathematics-statistics/notebooks/03-probability-information.ipynb) `P0` · 建设：Draft · 学习：Not Started
+- [ ] **M02.4** [数理统计](../modules/02-mathematics-statistics/notes/04-mathematical-statistics.qmd) · [notebook](../modules/02-mathematics-statistics/notebooks/04-mathematical-statistics.ipynb) `P0` · 建设：Draft · 学习：Not Started
+- [ ] **M02.5** [最优化](../modules/02-mathematics-statistics/notes/05-optimization.qmd) · [notebook](../modules/02-mathematics-statistics/notebooks/05-optimization.ipynb) `P0` · 建设：Draft · 学习：Not Started
+- [ ] **M02.6** [数值方法](../modules/02-mathematics-statistics/notes/06-numerical-methods.qmd) · [notebook](../modules/02-mathematics-statistics/notebooks/06-numerical-methods.ipynb) `P0` · 建设：Draft · 学习：Not Started
+- [ ] **M02.7** [群论与表示论](../modules/02-mathematics-statistics/notes/07-group-representation-theory.qmd) · [notebook](../modules/02-mathematics-statistics/notebooks/07-group-representation-theory.ipynb) `P1` · 建设：Draft · 学习：Not Started
+- [ ] **M02.8** [随机过程与采样](../modules/02-mathematics-statistics/notes/08-stochastic-processes-sampling.qmd) · [notebook](../modules/02-mathematics-statistics/notebooks/08-stochastic-processes-sampling.ipynb) `P1` · 建设：Draft · 学习：Not Started
 
 ## M03 数据科学
 
-- [ ] **M03.1** 数据获取与存储 `P0` · 建设：Planned · 学习：Not Started
-- [ ] **M03.2** 数据处理 `P0` `FT` · 建设：Planned · 学习：Not Started
-- [ ] **M03.3** 探索性数据分析与可视化 `P0` · 建设：Planned · 学习：Not Started
-- [ ] **M03.4** 数据划分、泄漏与分布偏移 `P0` · 建设：Planned · 学习：Not Started
-- [ ] **M03.5** 时间序列 `P1` · 建设：Planned · 学习：Not Started
-- [ ] **M03.6** 实验设计（DOE） `P1` · 建设：Planned · 学习：Not Started
+- [ ] **M03.1** [数据获取与存储](../modules/03-data-science/notes/01-data-acquisition-storage.qmd) · [notebook](../modules/03-data-science/notebooks/01-data-acquisition-storage.ipynb) `P0` · 建设：Draft · 学习：Not Started
+- [ ] **M03.2** [数据处理](../modules/03-data-science/notes/02-data-wrangling.qmd) · [notebook](../modules/03-data-science/notebooks/02-data-wrangling.ipynb) `P0` `FT` · 建设：Draft · 学习：Not Started
+- [ ] **M03.3** [探索性数据分析与可视化](../modules/03-data-science/notes/03-eda-visualization.qmd) · [notebook](../modules/03-data-science/notebooks/03-eda-visualization.ipynb) `P0` · 建设：Draft · 学习：Not Started
+- [ ] **M03.4** [数据划分、泄漏与分布偏移](../modules/03-data-science/notes/04-splitting-leakage-shift.qmd) · [notebook](../modules/03-data-science/notebooks/04-splitting-leakage-shift.ipynb) `P0` · 建设：Draft · 学习：Not Started
+- [ ] **M03.5** [时间序列](../modules/03-data-science/notes/05-time-series.qmd) · [notebook](../modules/03-data-science/notebooks/05-time-series.ipynb) `P1` · 建设：Draft · 学习：Not Started
+- [ ] **M03.6** [实验设计（DOE）](../modules/03-data-science/notes/06-design-of-experiments.qmd) · [notebook](../modules/03-data-science/notebooks/06-design-of-experiments.ipynb) `P1` · 建设：Draft · 学习：Not Started
 
 ## M04 传统机器学习
 
-- [ ] **M04.1** 统计学习基础 `P0` · 建设：Planned · 学习：Not Started
+- [ ] **M04.1** [统计学习基础](../modules/04-classical-machine-learning/notes/01-statistical-learning.qmd) · [notebook](../modules/04-classical-machine-learning/notebooks/01-statistical-learning.ipynb) `P0` · 建设：Draft · 学习：Not Started
 - [ ] **M04.2** [线性模型](../modules/04-classical-machine-learning/notes/02-linear-models.qmd) · [notebook](../modules/04-classical-machine-learning/notebooks/02-linear-models.ipynb) `P0` · 建设：Draft · 学习：Not Started
-- [ ] **M04.3** 核方法与高斯过程 `P0` · 建设：Planned · 学习：Not Started
-- [ ] **M04.4** 树模型与集成学习 `P0` · 建设：Planned · 学习：Not Started
-- [ ] **M04.5** 无监督学习 `P0` · 建设：Planned · 学习：Not Started
-- [ ] **M04.6** 异常检测 `P1` · 建设：Planned · 学习：Not Started
-- [ ] **M04.7** 模型评价与解释 `P0` · 建设：Planned · 学习：Not Started
-- [ ] **M04.8** ML 研究方法论 `P0` · 建设：Planned · 学习：Not Started
+- [ ] **M04.3** [核方法与高斯过程](../modules/04-classical-machine-learning/notes/03-kernels-gaussian-processes.qmd) · [notebook](../modules/04-classical-machine-learning/notebooks/03-kernels-gaussian-processes.ipynb) `P0` · 建设：Draft · 学习：Not Started
+- [ ] **M04.4** [树模型与集成学习](../modules/04-classical-machine-learning/notes/04-trees-ensembles.qmd) · [notebook](../modules/04-classical-machine-learning/notebooks/04-trees-ensembles.ipynb) `P0` · 建设：Draft · 学习：Not Started
+- [ ] **M04.5** [无监督学习](../modules/04-classical-machine-learning/notes/05-unsupervised-learning.qmd) · [notebook](../modules/04-classical-machine-learning/notebooks/05-unsupervised-learning.ipynb) `P0` · 建设：Draft · 学习：Not Started
+- [ ] **M04.6** [异常检测](../modules/04-classical-machine-learning/notes/06-anomaly-detection.qmd) · [notebook](../modules/04-classical-machine-learning/notebooks/06-anomaly-detection.ipynb) `P1` · 建设：Draft · 学习：Not Started
+- [ ] **M04.7** [模型评价与解释](../modules/04-classical-machine-learning/notes/07-evaluation-interpretation.qmd) · [notebook](../modules/04-classical-machine-learning/notebooks/07-evaluation-interpretation.ipynb) `P0` · 建设：Draft · 学习：Not Started
+- [ ] **M04.8** [ML 研究方法论](../modules/04-classical-machine-learning/notes/08-research-methodology.qmd) · [notebook](../modules/04-classical-machine-learning/notebooks/08-research-methodology.ipynb) `P0` · 建设：Draft · 学习：Not Started
 
 ## M05 深度学习
 
-- [ ] **M05.1** 神经网络基础 `P0` · 建设：Planned · 学习：Not Started
-- [ ] **M05.2** 自动微分 `P0` · 建设：Planned · 学习：Not Started
-- [ ] **M05.3** PyTorch 工程基础 `P0` `FT` · 建设：Planned · 学习：Not Started
-- [ ] **M05.4** 训练与优化技巧 `P0` · 建设：Planned · 学习：Not Started
-- [ ] **M05.5** 卷积网络与视觉 `P1` · 建设：Planned · 学习：Not Started
-- [ ] **M05.6** 序列模型 `P2` · 建设：Planned · 学习：Not Started
+- [ ] **M05.1** [神经网络基础](../modules/05-deep-learning/notes/01-neural-network-fundamentals.qmd) · [notebook](../modules/05-deep-learning/notebooks/01-neural-network-fundamentals.ipynb) `P0` · 建设：Draft · 学习：Not Started
+- [ ] **M05.2** [自动微分](../modules/05-deep-learning/notes/02-automatic-differentiation.qmd) · [notebook](../modules/05-deep-learning/notebooks/02-automatic-differentiation.ipynb) `P0` · 建设：Draft · 学习：Not Started
+- [ ] **M05.3** [PyTorch 工程基础](../modules/05-deep-learning/notes/03-pytorch-engineering.qmd) · [notebook](../modules/05-deep-learning/notebooks/03-pytorch-engineering.ipynb) `P0` `FT` · 建设：Draft · 学习：Not Started
+- [ ] **M05.4** [训练与优化技巧](../modules/05-deep-learning/notes/04-training-techniques.qmd) · [notebook](../modules/05-deep-learning/notebooks/04-training-techniques.ipynb) `P0` · 建设：Draft · 学习：Not Started
+- [ ] **M05.5** [卷积网络与视觉](../modules/05-deep-learning/notes/05-convolutional-networks.qmd) · [notebook](../modules/05-deep-learning/notebooks/05-convolutional-networks.ipynb) `P1` · 建设：Draft · 学习：Not Started
+- [ ] **M05.6** [序列模型](../modules/05-deep-learning/notes/06-sequence-models.qmd) · [notebook](../modules/05-deep-learning/notebooks/06-sequence-models.ipynb) `P2` · 建设：Draft · 学习：Not Started
 
 ## M06 现代 AI 架构
 
