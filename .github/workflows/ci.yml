@@ -47,8 +47,10 @@ jobs:
             echo "练习桩不应该通过测试" && exit 1
           fi
 
-      - name: make site
-        run: make site
+      # 发布构建（PROJECT_BLUEPRINT.md 第 6.8 节）：publish profile 剥离 .anno-* 批注，
+      # 隐藏“在 VS Code 中编辑”按钮，不写入任何本机路径。
+      - name: Render site (publish profile)
+        run: uv run quarto render --profile publish
 
       # 只在 main 分支的 push 上把渲染好的 _site/ 交给 GitHub Pages；PR 只检查不发布。
       - name: Upload site artifact
